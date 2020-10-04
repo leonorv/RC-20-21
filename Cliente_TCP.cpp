@@ -16,7 +16,7 @@ int main(void)
     struct addrinfo hints, *res;
     int fd, n;
     ssize_t nbytes,nleft,nwritten,nread;
-    char *ptr,buffer[SIZE];
+    char *ptr, buffer[SIZE];
     struct sigaction act;
 
     ptr=strcpy(buffer,"Hello!\n");
