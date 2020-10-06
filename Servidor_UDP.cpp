@@ -1,6 +1,7 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 #include <iostream>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -19,31 +20,31 @@ struct sockaddr_in addr;
 socklen_t addrlen;
 ssize_t n, nread;
 char buffer[SIZE];
-char *pdip, *asip;
+char *pdip, *asip, *pd_port, *as_port;
 char host[256];
-// int pd_port, as_port;
+char uid[5];
+char pass[8];
 
 static void parseArgs(long argc, char* const argv[]) {
-    // verificacoes
-    //pdip = argv[1];
-    // outras flags
+    //verificacoes
+    /*pdip = argv[1];
+    pd_port = argv[2];
+    asip = argv[3];
+    as_port = argv[4];*/
 }
-
-void processInput() {
-    string line;
-    getline(cin, line);
-    cout << line << endl;
-}
-
     
 int main(int argc, char* argv[]) {
-
+    
     int hostname = gethostname(host, sizeof(host));
     pdip = host;
     asip = host;
     
-    parseArgs(argc, argv);
-    
+    cin.getline(buffer, SIZE);
+    //parseArgs(argc, argv);
+    sscanf(buffer, "REG %s %s", uid, pass);
+    printf("%s\n", uid);
+    printf("%s\n", pass);
+
     if ((fd = socket(AF_INET, SOCK_DGRAM, 0)) == -1)
         exit(1); //error
 
@@ -62,7 +63,6 @@ int main(int argc, char* argv[]) {
         /*error*/
 
     while(1) {
-        processInput();
         addrlen = sizeof(addr);
         nread = recvfrom(fd, buffer, SIZE, 0, (struct sockaddr*)&addr, &addrlen);
         if(nread == -1)
@@ -78,3 +78,41 @@ int main(int argc, char* argv[]) {
     close(fd);
     exit(0);
 }
+
+/* SELECT
+int main(void) {
+    char in_str[128];
+    fd_set inputs, testfds;
+    struct timeval timeout;
+    int i, out_fds, n;
+    FD_ZERO(&inputs); // Clear inputs
+    FD_SET(0, &inputs); // Set standard input channel on
+    printf("Size of fd_set: %d\n", sizeof(fd_set));
+    printf("Value of FD_SETSIZE: %d\n", FD_SETSIZE);
+    while(1) {
+        testfds = inputs;
+        timeout.tv_sec = 10;
+        timeout.tv_usec = 0;
+        printf("testfds byte: %d\n", ((char *)&testfds)[0]);
+        out_fds = select(FD_SETSIZE, &testfds, (fd_set *)NULL, (fd_set *)NULL, &timeout);
+        printf("Time = %d and %d\n", timeout.tv_sec, timeout.tv_usec);
+        printf("testfds byte: %d\n", ((char *)&testfds)[0]);
+        switch(out_fds) {
+            case 0:
+                printf("Timeout event\n");
+                break;
+            case -1:
+                perror("select");
+                exit(1);
+            default:
+                if(FD_ISSET(0,&testfds)) {
+                    if((n=read(0,in_str,127))!=0) {
+                        if(n==-1)
+                        exit(1);
+                        in_str[n]=0;
+                        printf("From keyboard: %s\n",in_str);
+                    }
+                }
+            }
+        }
+    }*/
