@@ -11,7 +11,7 @@
 #define IP "tejo.tecnico.ulisboa.pt"
 #define SIZE 128
 
-char ASIP[SIZE], ASport[6] = "57030", FSIP[SIZE], FSport[6] = "59030";
+char ASIP[SIZE], ASport[SIZE] = "57030", FSIP[SIZE], FSport[SIZE] = "59030";
 
 void processInput(int argc, char* const argv[]) {
 
@@ -41,7 +41,7 @@ int main(int argc, char* const argv[]) {
     struct addrinfo hints, *res;
     int fd, n;
     ssize_t nbytes, nleft, nwritten, nread;
-    char *ptr, buffer[SIZE];
+    char *ptr, buffer[SIZE], msg[SIZE];
     struct sigaction act;
 
     gethostname(FSIP, SIZE);
@@ -49,9 +49,10 @@ int main(int argc, char* const argv[]) {
 
     processInput(argc, argv);
 
-    scanf("%[^\t\n]", ptr);
-    strcat(ptr, "\n");
-
+    fgets(msg, SIZE, stdin);
+    
+    ptr = strcpy(msg,"");
+    
     nbytes = strlen(ptr);
 
     fd = socket(AF_INET, SOCK_STREAM, 0);//TCP socket
@@ -75,7 +76,7 @@ int main(int argc, char* const argv[]) {
     // printf("1\n");
 
     nleft = nbytes;
-    while(nleft > 0) {
+    while (nleft > 0) {
         nwritten = write(fd, ptr, nleft);
         if (nwritten <= 0)/*error*/exit(1);
         nleft -= nwritten;
@@ -95,7 +96,7 @@ int main(int argc, char* const argv[]) {
     nread = nbytes - nleft;  
     close(fd);
 
-    //write(1, "echo: ", 6);//stout
+    write(1, "echo: ", 6);//stout
     write(1, buffer, nread);
     exit(0);
 }
