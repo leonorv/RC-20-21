@@ -50,8 +50,11 @@ int main(int argc, char* const argv[]) {
     processInput(argc, argv);
 
     fgets(msg, SIZE, stdin);
-    
-    ptr = strcpy(msg,"");
+
+    ptr = (char*) malloc(strlen(msg) + 1);
+    strcpy(ptr, msg);
+
+    strcat(ptr, "\0");
     
     nbytes = strlen(ptr);
 
@@ -71,32 +74,34 @@ int main(int argc, char* const argv[]) {
     if (n != 0)/*error*/exit(1);
 
     n = connect(fd, res->ai_addr, res->ai_addrlen);
-    if (n == -1)/*error*/exit(1);
-
-    // printf("1\n");
+    if (n == -1)/*error*/{
+        //printf("%u", res->ai_addrlen);
+        //printf("connect\n");
+        exit(1);
+    }
 
     nleft = nbytes;
     while (nleft > 0) {
         nwritten = write(fd, ptr, nleft);
+        printf("write\n");
         if (nwritten <= 0)/*error*/exit(1);
         nleft -= nwritten;
         ptr += nwritten;
 }
     nleft = nbytes; 
     ptr = buffer;
-    printf("%lu %s\n", nleft, ptr);
     while (nleft > 0) {
         nread = read(fd, ptr, nleft);
+        printf("read: %ld\n", nread);
         if (nread == -1)/*error*/ exit(1);
         else if (nread == 0) break;//closed by peer
         nleft -= nread;
         ptr += nread;
-        printf("no while %lu %s\n", nleft, ptr);
     }
     nread = nbytes - nleft;  
     close(fd);
 
-    write(1, "echo: ", 6);//stout
     write(1, buffer, nread);
+    printf("escreveu");
     exit(0);
 }

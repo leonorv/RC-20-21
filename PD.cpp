@@ -62,12 +62,10 @@ int main(int argc, char* argv[]){
     struct addrinfo hints, *res;
     struct sockaddr_in addr;
     char buffer[SIZE], msg[SIZE];
-    char ASIPbuffer[SIZE];
     char command[3], uid[5], password[8];
 
-    if (gethostname(ASIPbuffer ,SIZE) == -1)
+    if (gethostname(ASIP ,SIZE) == -1)
         fprintf(stderr,"error: %s\n",strerror(errno));
-    strcpy(ASIP, ASIPbuffer);
 
 
     udpServerSocket = socket(AF_INET, SOCK_DGRAM, 0);//UDP socket
