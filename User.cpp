@@ -17,9 +17,13 @@ using namespace std;
 #define IP "tejo.tecnico.ulisboa.pt"
 #define SIZE 128
 
+<<<<<<< HEAD
 extern int errno;
 char PDIP[SIZE], ASIP[SIZE], PDport[SIZE] = "57030", ASport[SIZE] = "58030";
 char fixedReg[SIZE];
+=======
+char ASIP[SIZE], ASport[SIZE] = "57030", FSIP[SIZE], FSport[SIZE] = "59030";
+>>>>>>> 716cfb8107dcd4782dd8026def24fbf435e63b45
 
 void processInput(int argc, char* const argv[]) {
     //faltam verificacoes de qtds de argumentos etc acho eu
@@ -47,11 +51,20 @@ void processInput(int argc, char* const argv[]) {
         }
     }
 
+<<<<<<< HEAD
     strcpy(fixedReg, PDIP);
     strcat(fixedReg, " ");
     strcat(fixedReg, PDport);
     strcat(fixedReg, "\n");
 }
+=======
+int main(int argc, char* const argv[]) {
+    struct addrinfo hints, *res;
+    int fd, n;
+    ssize_t nbytes, nleft, nwritten, nread;
+    char *ptr, buffer[SIZE], msg[SIZE];
+    struct sigaction act;
+>>>>>>> 716cfb8107dcd4782dd8026def24fbf435e63b45
 
 int main(int argc, char* argv[]){
     int udpServerSocket,udpClientSocket, afd = 0, errcode_c,errcode_s,fd;
@@ -98,6 +111,7 @@ int main(int argc, char* argv[]){
     }
 
     processInput(argc, argv);
+<<<<<<< HEAD
     
     while(1){
         FD_ZERO(&readfds);
@@ -154,4 +168,62 @@ int main(int argc, char* argv[]){
              }
         }
     }
+=======
+
+    fgets(msg, SIZE, stdin);
+
+    ptr = (char*) malloc(strlen(msg) + 1);
+    strcpy(ptr, msg);
+
+    strcat(ptr, "\0");
+    
+    nbytes = strlen(ptr);
+
+    fd = socket(AF_INET, SOCK_STREAM, 0);//TCP socket
+    if (fd == -1)/*error*/exit(1);
+
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_INET;//IPv4
+    hints.ai_socktype = SOCK_STREAM;//TCP socket
+
+    memset(&hints, 0, sizeof(act));
+    act.sa_handler = SIG_IGN;
+
+    if (sigaction(SIGPIPE, &act, NULL) == -1)/*error*/exit(1);
+
+    n = getaddrinfo(IP, PORT, &hints, &res);  
+    if (n != 0)/*error*/exit(1);
+
+    n = connect(fd, res->ai_addr, res->ai_addrlen);
+    if (n == -1)/*error*/{
+        //printf("%u", res->ai_addrlen);
+        //printf("connect\n");
+        exit(1);
+    }
+
+    nleft = nbytes;
+    while (nleft > 0) {
+        nwritten = write(fd, ptr, nleft);
+        printf("write\n");
+        if (nwritten <= 0)/*error*/exit(1);
+        nleft -= nwritten;
+        ptr += nwritten;
+}
+    nleft = nbytes; 
+    ptr = buffer;
+    while (nleft > 0) {
+        nread = read(fd, ptr, nleft);
+        printf("read: %ld\n", nread);
+        if (nread == -1)/*error*/ exit(1);
+        else if (nread == 0) break;//closed by peer
+        nleft -= nread;
+        ptr += nread;
+    }
+    nread = nbytes - nleft;  
+    close(fd);
+
+    write(1, buffer, nread);
+    printf("escreveu");
+    exit(0);
+>>>>>>> 716cfb8107dcd4782dd8026def24fbf435e63b45
 }
