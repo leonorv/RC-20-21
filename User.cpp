@@ -40,7 +40,7 @@ void processInput(int argc, char* const argv[]) {
 
 int main(int argc, char* const argv[]) {
     struct addrinfo hints, *res;
-    int tcpServerSocket, errcode, rID;
+    int tcpServerSocket, errcode, rID, vc;
     ssize_t n;
     ssize_t nbytes, nleft, nwritten, nread;
     char *ptr, buffer[SIZE], msg[SIZE], command[4], fop[2], filename[50], uid[6]="";
@@ -82,44 +82,48 @@ int main(int argc, char* const argv[]) {
             if (strcmp(command, "LOG") == 0) {
                 token = strtok(NULL, " ");
                 strcpy(uid, token);
-                printf("You are now logged in.\n");
+                printf("You are now logged in.\n"); // isto tem que que aparecer se recebermos o RLO OK
             }
             else if (strcmp(command, "REQ") == 0) {
-                if (strcmp(uid,"")==0) {
+                if (strcmp(uid,"") == 0) {
                     printf("NO UID\n");
                 }
-                else
-                {
-                rID = rand() % 9000 + 1000;
+                else {
+                    rID = rand() % 9000 + 1000;
 
-                int flag=0;
-                while( token != NULL ) {
-                    token = strtok(NULL, " ");
-                    if(flag==0)
-                    {
-                        strcpy(fop, token);
-                        flag=1;
-                    }
-                    else if(flag=1){
-                        strcpy(filename, token);
-                        break;
-                    }
-                }
-                sprintf(ptr, "%s %s %d %s %s", command, uid, rID, fop, filename);
+                    int flag=0;
+                    while( token != NULL ) {
+                        token = strtok(NULL, " ");
+                        if(flag==0)
+                        {
+                            strcpy(fop, token);
+                            flag=1;
+                        }
+                        else if(flag=1){
+                            strcpy(filename, token);
+                            break;
+                        }
+                    } //////////// mudar esta parte das flags
+                    sprintf(ptr, "%s %s %d %s %s", command, uid, rID, fop, filename);
+                
                 }
             }
-            else if (strcmp(command, "AUT") == 0) {
-                ;;
+            else if (strcmp(command, "VAL") == 0) {
+                token = strtok(NULL, " ");
+                vc = atoi(token);
+                sprintf(ptr, "AUT %s %d %d\n", uid, rID, vc);
+                //printf("Authenticated! (TID=%d)\n"); // isto tem que que aparecer se recebermos o RAU ####
             }
+
             nbytes = strlen(ptr);
             nleft = nbytes;
-                n = write(tcpServerSocket, ptr, nleft);
-                if (n <= 0) exit(1);
-            
-                n = read(tcpServerSocket, buffer, SIZE);
-                if (n == -1)  exit(1);
-               
-                write(1, buffer, n);   
+            n = write(tcpServerSocket, ptr, nleft);
+            if (n <= 0) exit(1);
+
+            n = read(tcpServerSocket, buffer, SIZE);
+            if (n == -1)  exit(1);
+        
+            write(1, buffer, n);   
         }
     }
 }

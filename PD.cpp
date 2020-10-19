@@ -155,22 +155,22 @@ int main(int argc, char* argv[]){
                             strcpy(vlc, token);
                             flag++;
                         }
-                        else if(flag==2){
+                        else if(flag == 2){
                             strcpy(fop, token);
-                            if(strcmp(fop,"U")==0){
+                            if(strcmp(fop, "U") == 0) {
                                 strcpy(op_name, "upload");
                             }
-                            else if(strcmp(fop,"R")==0){
-                                strcpy(op_name, "upload");
+                            else if(strcmp(fop, "R") == 0) {
+                                strcpy(op_name, "retrieve");
                             }
-                            else if(strcmp(fop,"D")==0){
-                                strcpy(op_name, "upload");
+                            else if(strcmp(fop, "D") == 0) {
+                                strcpy(op_name, "delete");
                             }
-                            else if(strcmp(fop,"L")==0){
-                                strcpy(op_name, "upload");
+                            else if(strcmp(fop, "L") == 0) {
+                                strcpy(op_name, "list");
                             }
-                            else if(strcmp(fop,"X")==0){
-                                strcpy(op_name, "upload");
+                            else if(strcmp(fop, "X") == 0) {
+                                strcpy(op_name, "remove");
                             }
                             flag++;
                         }
@@ -179,12 +179,15 @@ int main(int argc, char* argv[]){
                             break;
                         }
                     }
-                    printf("VC=%s, %s: %s", vlc, op_name, filename);
+                    if (strcmp(fop, "L") == 0 || strcmp(fop, "X") == 0)
+                        printf("VC=%s, %s", vlc, op_name);
+                    else
+                        printf("VC=%s, %s: %s", vlc, op_name, filename);
                     
                     strcpy(buffer, "RVC OK\n");
                     n = strlen(buffer);
                 }
-                n=sendto(udpServerSocket, buffer, n, 0, (struct sockaddr*) &addr_s, addrlen_s);
+                n = sendto(udpServerSocket, buffer, n, 0, (struct sockaddr*) &addr_s, addrlen_s);
                 if (n == -1)/*error*/exit(1);   
 
                 memset(buffer, '\0', SIZE * sizeof(char));
