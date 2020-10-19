@@ -43,7 +43,7 @@ int main(int argc, char* const argv[]) {
     int tcpServerSocket, errcode, rID;
     ssize_t n;
     ssize_t nbytes, nleft, nwritten, nread;
-    char *ptr, buffer[SIZE], msg[SIZE], command[4], fop[2], uid[6];
+    char *ptr, buffer[SIZE], msg[SIZE], command[4], fop[2], filename[50], uid[6]="";
 
     gethostname(FSIP, SIZE);
     gethostname(ASIP, SIZE);
@@ -69,7 +69,6 @@ int main(int argc, char* const argv[]) {
         ptr = (char*) malloc(strlen(msg) + 1);
         strcpy(ptr, msg);
         strcat(ptr, "\0");
-        nbytes = strlen(ptr);
 
         if (strcmp(msg, "exit\n") == 0) {
             close(tcpServerSocket);
@@ -83,28 +82,36 @@ int main(int argc, char* const argv[]) {
             if (strcmp(command, "LOG") == 0) {
                 token = strtok(NULL, " ");
                 strcpy(uid, token);
+                printf("You are now logged in.\n");
             }
             else if (strcmp(command, "REQ") == 0) {
-                if (uid == NULL) {
+                if (strcmp(uid,"")==0) {
                     printf("NO UID\n");
-                    exit(1);
                 }
+                else
+                {
                 rID = rand() % 9000 + 1000;
 
+                int flag=0;
                 while( token != NULL ) {
-                    printf( "%s\n", token);
                     token = strtok(NULL, " ");
+                    if(flag==0)
+                    {
+                        strcpy(fop, token);
+                        flag=1;
+                    }
+                    else if(flag=1){
+                        strcpy(filename, token);
+                        break;
+                    }
                 }
-
-                // strcat(command, uid, 5);
-                // printf("%s\n", command);
+                sprintf(ptr, "%s %s %d %s %s", command, uid, rID, fop, filename);
+                }
             }
             else if (strcmp(command, "AUT") == 0) {
                 ;;
             }
-        }
-        
-        /*else{
+            nbytes = strlen(ptr);
             nleft = nbytes;
                 n = write(tcpServerSocket, ptr, nleft);
                 if (n <= 0) exit(1);
@@ -113,6 +120,6 @@ int main(int argc, char* const argv[]) {
                 if (n == -1)  exit(1);
                
                 write(1, buffer, n);   
-            }*/
+        }
     }
 }

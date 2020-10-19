@@ -62,7 +62,8 @@ int main(int argc, char* argv[]){
     struct addrinfo hints_c, hints_s, *res_c, *res_s;
     struct sockaddr_in addr_c, addr_s;
     char buffer[SIZE], msg[SIZE];
-    char command[3], uid[5], password[8];
+    char command[3], uid[5], password[8], fop[2], filename[50], vlc[5], op_name[10];
+    char comando[4], confirmation[8];
 
     if (gethostname(ASIP ,SIZE) == -1)
         fprintf(stderr,"error: %s\n",strerror(errno));
@@ -74,7 +75,6 @@ int main(int argc, char* argv[]){
     hints_c.ai_family = AF_INET;//IPv4
     hints_c.ai_socktype = SOCK_DGRAM;//UDP socket
 
-    // errcode_c = getaddrinfo(IP, PORT, &hints_c ,&res_c);
     errcode_c = getaddrinfo(IP, ASport, &hints_c ,&res_c);
         if (errcode_c != 0)/*error*/exit(1);
     
@@ -86,15 +86,12 @@ int main(int argc, char* argv[]){
     hints_s.ai_socktype = SOCK_DGRAM;//UDP socket
     hints_s.ai_flags = AI_PASSIVE;
 
-    // errcode_s = getaddrinfo(NULL, PORT, &hints_s ,&res_s);
-    errcode_s = getaddrinfo(NULL, ASport, &hints_s, &res_s);
+    errcode_s = getaddrinfo(NULL, PDport, &hints_s, &res_s);
         if (errcode_s != 0)/*error*/exit(1);
 
     if (bind(udpServerSocket, res_s->ai_addr, res_s->ai_addrlen) < 0 ) {
-        printf ("Unable to bind socket\n");
-    } else {
-        printf ("Bound to socket\n");
-    }
+        printf ("Unable to bind\n");
+    } 
 
     processInput(argc, argv);
     
@@ -110,7 +107,6 @@ int main(int argc, char* argv[]){
         
         for (; retval; retval--){
             if(FD_ISSET(afd, &readfds)){
-                FD_CLR(afd, &readfds);
                 fgets(msg, SIZE, stdin);
                 strtok(msg, "\n");
                 if (strcmp(msg, "exit") == 0) {
@@ -123,13 +119,13 @@ int main(int argc, char* argv[]){
                 else {
                     strcat(strcat(msg, " "), fixedReg);              
                     n = sendto(udpClientSocket, msg, strlen(msg), 0, res_c->ai_addr, res_c->ai_addrlen);
-                    printf("%s\n", msg);
-                    if (n == -1)/*error*/exit(1);       
+                    if (n == -1)/*error*/exit(1);
+
+                    printf("Registration succesful\n");       
                 }
                 memset(msg, '\0', SIZE * sizeof(char));
             }
             if (FD_ISSET(udpClientSocket, &readfds)) {
-                FD_CLR(udpClientSocket, &readfds);
                 addrlen_c = sizeof(addr_c);
                 n = recvfrom(udpClientSocket, buffer, 128, 0, (struct sockaddr*) &addr_c, &addrlen_c);
                     if (n == -1)/*error*/exit(1);
@@ -138,20 +134,61 @@ int main(int argc, char* argv[]){
                 memset(buffer, '\0', SIZE * sizeof(char));
              }
             if (FD_ISSET(udpServerSocket, &readfds)) {
-                printf("xxxxxxxxxxxxxxxxxxxxxxxxxxx");
-                FD_CLR(udpServerSocket, &readfds);
 
                 addrlen_s = sizeof(addr_s);
                 n = recvfrom(udpServerSocket, buffer, 128, 0, (struct sockaddr*) &addr_s, &addrlen_s);
                     if (n == -1)/*error*/exit(1);
 
-                write(1, buffer, n);
+                char *token = strtok(buffer, " ");
+                strcpy(comando, token);
 
-                n = sendto(udpServerSocket, buffer, strlen(buffer), 0, res_s->ai_addr, res_s->ai_addrlen);
-                    if (n == -1)/*error*/exit(1);   
+                if (strcmp(comando, "VLC") == 0) {
+
+                    int flag=0;
+                    while( token != NULL ) {
+                        token = strtok(NULL, " ");
+                        if(flag==0){
+                             flag++;
+                        }
+                        else if(flag==1)
+                        {
+                            strcpy(vlc, token);
+                            flag++;
+                        }
+                        else if(flag==2){
+                            strcpy(fop, token);
+                            if(strcmp(fop,"U")==0){
+                                strcpy(op_name, "upload");
+                            }
+                            else if(strcmp(fop,"R")==0){
+                                strcpy(op_name, "upload");
+                            }
+                            else if(strcmp(fop,"D")==0){
+                                strcpy(op_name, "upload");
+                            }
+                            else if(strcmp(fop,"L")==0){
+                                strcpy(op_name, "upload");
+                            }
+                            else if(strcmp(fop,"X")==0){
+                                strcpy(op_name, "upload");
+                            }
+                            flag++;
+                        }
+                        else if(flag==3){
+                            strcpy(filename, token);
+                            break;
+                        }
+                    }
+                    printf("VC=%s, %s: %s", vlc, op_name, filename);
+                    
+                    strcpy(buffer, "RVC OK\n");
+                    n = strlen(buffer);
+                }
+                n=sendto(udpServerSocket, buffer, n, 0, (struct sockaddr*) &addr_s, addrlen_s);
+                if (n == -1)/*error*/exit(1);   
 
                 memset(buffer, '\0', SIZE * sizeof(char));
-             }
+            }
         }
     }
 }
