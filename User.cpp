@@ -82,7 +82,6 @@ int main(int argc, char* const argv[]) {
             if (strcmp(command, "LOG") == 0) {
                 token = strtok(NULL, " ");
                 strcpy(uid, token);
-                printf("You are now logged in.\n"); // isto tem que que aparecer se recebermos o RLO OK
             }
             else if (strcmp(command, "REQ") == 0) {
                 if (strcmp(uid,"") == 0) {
@@ -91,20 +90,32 @@ int main(int argc, char* const argv[]) {
                 else {
                     rID = rand() % 9000 + 1000;
 
-                    int flag=0;
-                    while( token != NULL ) {
+                    int flag = 0;
+                    while( token != " " ) {
                         token = strtok(NULL, " ");
-                        if(flag==0)
+                        if(flag == 0)
                         {
                             strcpy(fop, token);
-                            flag=1;
+                            flag = 1;
                         }
-                        else if(flag=1){
-                            strcpy(filename, token);
-                            break;
+                        else if(flag == 1){
+                            if(token != NULL){
+                                strcpy(filename, token);
+                                break;
+                            }
+                            else{
+                                flag = 2;
+                                break;
+                            }
                         }
                     } //////////// mudar esta parte das flags
-                    sprintf(ptr, "%s %s %d %s %s", command, uid, rID, fop, filename);
+                    if(flag == 1){
+                         sprintf(ptr, "%s %s %d %s %s", command, uid, rID, fop, filename);
+                    }
+                    else if(flag == 2){
+                        //strcpy(command, "REQ");
+                        sprintf(ptr, "REQ %s %d %s", uid, rID, fop);
+                    }
                 
                 }
             }
@@ -112,18 +123,34 @@ int main(int argc, char* const argv[]) {
                 token = strtok(NULL, " ");
                 vc = atoi(token);
                 sprintf(ptr, "AUT %s %d %d\n", uid, rID, vc);
-                //printf("Authenticated! (TID=%d)\n"); // isto tem que que aparecer se recebermos o RAU ####
             }
-
             nbytes = strlen(ptr);
             nleft = nbytes;
+
             n = write(tcpServerSocket, ptr, nleft);
             if (n <= 0) exit(1);
 
             n = read(tcpServerSocket, buffer, SIZE);
             if (n == -1)  exit(1);
-        
-            write(1, buffer, n);   
-        }
+     
+            write(1, buffer, n);  
+
+            char *token_2 = strtok(buffer, " ");
+            strcpy(command, token_2);
+
+            if(strcmp(command, "RLO")==0){
+                printf("You are now logged in.\n"); 
+            }
+            else if (strcmp(command, "RAU") == 0) {
+                int tid;
+                token_2 = strtok(NULL, " ");
+                tid = atoi(token_2);
+
+                printf("Authenticated! (TID=%d)\n", tid); 
+                }
+            }
+
+            memset(buffer, '\0', SIZE * sizeof(char));
+            free(ptr);
     }
 }

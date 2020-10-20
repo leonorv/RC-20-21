@@ -119,9 +119,7 @@ int main(int argc, char* argv[]){
                 else {
                     strcat(strcat(msg, " "), fixedReg);              
                     n = sendto(udpClientSocket, msg, strlen(msg), 0, res_c->ai_addr, res_c->ai_addrlen);
-                    if (n == -1)/*error*/exit(1);
-
-                    printf("Registration succesful\n");       
+                    if (n == -1)/*error*/exit(1);     
                 }
                 memset(msg, '\0', SIZE * sizeof(char));
             }
@@ -131,6 +129,11 @@ int main(int argc, char* argv[]){
                     if (n == -1)/*error*/exit(1);
 
                 write(1, buffer, n);
+
+                if(strcmp(buffer, "RRG OK\n") == 0){
+                    printf("Registration successful\n");  
+                }
+
                 memset(buffer, '\0', SIZE * sizeof(char));
              }
             if (FD_ISSET(udpServerSocket, &readfds)) {
@@ -144,13 +147,13 @@ int main(int argc, char* argv[]){
 
                 if (strcmp(comando, "VLC") == 0) {
 
-                    int flag=0;
-                    while( token != NULL ) {
+                    int flag = 0;
+                    while( token != " " ) {
                         token = strtok(NULL, " ");
-                        if(flag==0){
+                        if(flag == 0){
                              flag++;
                         }
-                        else if(flag==1)
+                        else if(flag == 1)
                         {
                             strcpy(vlc, token);
                             flag++;
@@ -166,23 +169,32 @@ int main(int argc, char* argv[]){
                             else if(strcmp(fop, "D") == 0) {
                                 strcpy(op_name, "delete");
                             }
-                            else if(strcmp(fop, "L") == 0) {
-                                strcpy(op_name, "list");
+                            else if(strcmp(fop, "L\n") == 0) {
+                                strcpy(op_name, "list\n");
+                                break;
                             }
-                            else if(strcmp(fop, "X") == 0) {
-                                strcpy(op_name, "remove");
+                            else if(strcmp(fop, "X\n") == 0) {
+                                strcpy(op_name, "remove\n");
                             }
                             flag++;
                         }
-                        else if(flag==3){
-                            strcpy(filename, token);
-                            break;
+                        else if(flag == 3){
+                            if(token != NULL){
+                                strcpy(filename, token);
+                                break;
+                            }
+                            else{
+                                flag=4;
+                                break;
+                            }
                         }
                     }
-                    if (strcmp(fop, "L") == 0 || strcmp(fop, "X") == 0)
+                    if (strcmp(fop, "L\n") == 0 || strcmp(fop, "X\n") == 0){
                         printf("VC=%s, %s", vlc, op_name);
-                    else
+                    }
+                    else{
                         printf("VC=%s, %s: %s", vlc, op_name, filename);
+                    }
                     
                     strcpy(buffer, "RVC OK\n");
                     n = strlen(buffer);
