@@ -13,7 +13,6 @@
 using namespace std;
 
 #define max(A,B)((A)>=(B)?(A):(B))
-// #define PORT "58011"
 #define IP "tejo.tecnico.ulisboa.pt"
 #define SIZE 128
 
@@ -22,11 +21,9 @@ char PDIP[SIZE], ASIP[SIZE], PDport[SIZE] = "57030", ASport[SIZE] = "58011";
 char fixedReg[SIZE];
 
 void processInput(int argc, char* const argv[]) {
-    //faltam verificacoes de qtds de argumentos etc acho eu
     if (argc < 2)
         exit(1);
     strcpy(PDIP, argv[1]);
-    //PDIP = strdup(argv[1]);
     for (int i = 2; i < argc - 1; i++) {
         if (strcmp(argv[i], "-d") == 0) {
             if (strlen(argv[i + 1]) > SIZE) exit(1);
@@ -35,18 +32,15 @@ void processInput(int argc, char* const argv[]) {
         }
         else if (strcmp(argv[i], "-n") == 0) {
             if (strlen(argv[i + 1]) > SIZE) exit(1);
-            //ASIP = strdup(argv[i + 1]);
             strcpy(ASIP, argv[i + 1]);
             continue;
         }
         else if (strcmp(argv[i], "-p") == 0) {
             if (strlen(argv[i + 1]) > SIZE) exit(1);
-            //ASport = strdup(argv[i + 1]);
             strcpy(ASport, argv[i + 1]);
             continue;
         }
     }
-
     strcpy(fixedReg, PDIP);
     strcat(fixedReg, " ");
     strcat(fixedReg, PDport);
@@ -62,12 +56,16 @@ int main(int argc, char* argv[]){
     struct addrinfo hints_c, hints_s, *res_c, *res_s;
     struct sockaddr_in addr_c, addr_s;
     char buffer[SIZE], msg[SIZE];
-    char command[3], uid[5], password[8], fop[2], filename[50], vlc[5], op_name[10];
-    char comando[4], confirmation[8];
+    char command[4], uid[5], password[8], filename[50], vc[5], op_name[10], confirmation[8];
+    // char fop[2];
+    char fop;
 
     if (gethostname(ASIP ,SIZE) == -1)
         fprintf(stderr,"error: %s\n",strerror(errno));
 
+    /*==========================
+    Setting up UDP Client Socket
+    ==========================*/
     udpClientSocket = socket(AF_INET, SOCK_DGRAM, 0);//UDP socket
         if(udpClientSocket == -1)/*error*/exit(1);
 
@@ -76,8 +74,11 @@ int main(int argc, char* argv[]){
     hints_c.ai_socktype = SOCK_DGRAM;//UDP socket
 
     errcode_c = getaddrinfo(IP, ASport, &hints_c ,&res_c);
-        if (errcode_c != 0)/*error*/exit(1);
+    if (errcode_c != 0)/*error*/exit(1);
     
+    /*==========================
+    Setting up UDP Server Socket
+    ==========================*/
     udpServerSocket = socket(AF_INET, SOCK_DGRAM, 0);//UDP socket
     if(udpServerSocket == -1)/*error*/exit(1);
 
@@ -87,12 +88,13 @@ int main(int argc, char* argv[]){
     hints_s.ai_flags = AI_PASSIVE;
 
     errcode_s = getaddrinfo(NULL, PDport, &hints_s, &res_s);
-        if (errcode_s != 0)/*error*/exit(1);
+    if (errcode_s != 0)/*error*/exit(1);
 
-    if (bind(udpServerSocket, res_s->ai_addr, res_s->ai_addrlen) < 0 ) {
-        printf ("Unable to bind\n");
-    } 
+    if (bind(udpServerSocket, res_s->ai_addr, res_s->ai_addrlen) < 0 ) exit(1);
 
+    /*==========================
+        process standard input
+    ==========================*/
     processInput(argc, argv);
     
     while (1){
@@ -100,16 +102,23 @@ int main(int argc, char* argv[]){
         FD_SET(afd, &readfds);
         FD_SET(udpClientSocket, &readfds);
         FD_SET(udpServerSocket, &readfds);
-        maxfd = max(udpClientSocket, udpServerSocket);
 
+        /*==========================
+        Pick the active file descriptor(s)
+        ==========================*/
+        maxfd = max(udpClientSocket, udpServerSocket);
         retval = select(maxfd + 1, &readfds, NULL, NULL, NULL);
         if (retval <= 0)/*error*/exit(1);
         
         for (; retval; retval--){
             if(FD_ISSET(afd, &readfds)){
                 fgets(msg, SIZE, stdin);
+                /* msg is input written in standard input*/
                 strtok(msg, "\n");
                 if (strcmp(msg, "exit") == 0) {
+                    /*====================================================
+                    Free data structures and close socket connections
+                    ====================================================*/
                     freeaddrinfo(res_c);
                     freeaddrinfo(res_s);
                     close(udpClientSocket);
@@ -117,6 +126,9 @@ int main(int argc, char* argv[]){
                     exit(1);
                 }
                 else {
+                    /*====================================================
+                    Send message from stdin to the server
+                    ====================================================*/
                     strcat(strcat(msg, " "), fixedReg);              
                     n = sendto(udpClientSocket, msg, strlen(msg), 0, res_c->ai_addr, res_c->ai_addrlen);
                     if (n == -1)/*error*/exit(1);     
@@ -124,84 +136,116 @@ int main(int argc, char* argv[]){
                 memset(msg, '\0', SIZE * sizeof(char));
             }
             if (FD_ISSET(udpClientSocket, &readfds)) {
+                /*====================================================
+                Receive message from AS in response to PD request
+                ====================================================*/
                 addrlen_c = sizeof(addr_c);
                 n = recvfrom(udpClientSocket, buffer, 128, 0, (struct sockaddr*) &addr_c, &addrlen_c);
-                    if (n == -1)/*error*/exit(1);
+                if (n == -1)/*error*/exit(1);
+                buffer[n] = '\0';
 
                 write(1, buffer, n);
-
                 if(strcmp(buffer, "RRG OK\n") == 0){
                     printf("Registration successful\n");  
                 }
-
+                /* reset buffer */
                 memset(buffer, '\0', SIZE * sizeof(char));
              }
             if (FD_ISSET(udpServerSocket, &readfds)) {
-
+                /*====================================================
+                Receive messages from AS unprovoked
+                ====================================================*/
                 addrlen_s = sizeof(addr_s);
                 n = recvfrom(udpServerSocket, buffer, 128, 0, (struct sockaddr*) &addr_s, &addrlen_s);
-                    if (n == -1)/*error*/exit(1);
+                if (n == -1)/*error*/exit(1);
+                buffer[n] = '\0';
 
+                /*separate command*/
                 char *token = strtok(buffer, " ");
-                strcpy(comando, token);
+                strcpy(command, token);
 
-                if (strcmp(comando, "VLC") == 0) {
-
-                    int flag = 0;
-                    while( token != " " ) {
-                        token = strtok(NULL, " ");
-                        if(flag == 0){
-                             flag++;
-                        }
-                        else if(flag == 1)
-                        {
-                            strcpy(vlc, token);
-                            flag++;
-                        }
-                        else if(flag == 2){
-                            strcpy(fop, token);
-                            if(strcmp(fop, "U") == 0) {
-                                strcpy(op_name, "upload");
-                            }
-                            else if(strcmp(fop, "R") == 0) {
-                                strcpy(op_name, "retrieve");
-                            }
-                            else if(strcmp(fop, "D") == 0) {
-                                strcpy(op_name, "delete");
-                            }
-                            else if(strcmp(fop, "L\n") == 0) {
-                                strcpy(op_name, "list\n");
-                                break;
-                            }
-                            else if(strcmp(fop, "X\n") == 0) {
-                                strcpy(op_name, "remove\n");
-                            }
-                            flag++;
-                        }
-                        else if(flag == 3){
-                            if(token != NULL){
-                                strcpy(filename, token);
-                                break;
-                            }
-                            else{
-                                flag=4;
-                                break;
-                            }
-                        }
+                /*process VLCs*/
+                /*VLC UID VC FOP FILENAME\n
+                  or
+                  VLC UID VC FOP\n
+                */
+                if (strcmp(command, "VLC") == 0) {
+                    token = strtok(buffer, " ");
+                    strcpy(uid, token);
+                    token = strtok(buffer, " ");
+                    strcpy(vc, token);
+                    token = strtok(buffer, " ");
+                    strcpy(fop, token);
+                    if (strcmp(fop, "L") != 0 && strcmp(fop, "X") != 0) {
+                        token = strtok(buffer, " ");
+                        strcpy(filename, token);
+                    } else {
+                        filename[0] = '\0';
                     }
-                    if (strcmp(fop, "L\n") == 0 || strcmp(fop, "X\n") == 0){
-                        printf("VC=%s, %s", vlc, op_name);
+                    //int a_as_int = (int)'a';
+                    switch (fop) {
+                        case 'U':
+                            strcpy(op_name, "upload:");
+                            break;
+                        case 'R':
+                            strcpy(op_name, "retrieve:");
+                            break;
+                        case 'D':
+                            strcpy(op_name, "delete:");
+                            break;
+                        case 'L':
+                            strcpy(op_name, "list\n");
+                            break;
+                        case 'X':
+                            strcpy(op_name, "remove\n");
+                            break;
                     }
-                    else{
-                        printf("VC=%s, %s: %s", vlc, op_name, filename);
+                        // else if(flag == 2) {
+                        //     strcpy(fop, token);
+                        //     if(strcmp(fop, "U") == 0) {
+                        //         strcpy(op_name, "upload");
+                        //     }
+                        //     else if(strcmp(fop, "R") == 0) {
+                        //         strcpy(op_name, "retrieve");
+                        //     }
+                        //     else if(strcmp(fop, "D") == 0) {
+                        //         strcpy(op_name, "delete");
+                        //     }
+                        //     else if(strcmp(fop, "L\n") == 0) {
+                        //         strcpy(op_name, "list\n");
+                        //         break;
+                        //     }
+                        //     else if(strcmp(fop, "X\n") == 0) {
+                        //         strcpy(op_name, "remove\n");
+                        //     }
+                        //     flag++;
+                        // }
+                        // else if(flag == 3) {
+                        //     if(token != NULL) {
+                        //         strcpy(filename, token);
+                        //         break;
+                        //     }
+                        //     else{
+                        //         flag=4;
+                        //         break;
+                        //     }
+                        // }
                     }
+                    // if (strcmp(fop, "L\n") == 0 || strcmp(fop, "X\n") == 0) {
+                    //     printf("VC=%s, %s", vc, op_name);
+                    // }
+                    // else {
+                    //     printf("VC=%s, %s: %s", vc, op_name, filename);
+                    // }
                     
+                    printf("VC=%s, %s %s", vc, op_name, filename);
+                    /*copy confirmation message to buffer*/
                     strcpy(buffer, "RVC OK\n");
                     n = strlen(buffer);
                 }
+                /*send confirmation message to AS*/
                 n = sendto(udpServerSocket, buffer, n, 0, (struct sockaddr*) &addr_s, addrlen_s);
                 if (n == -1)/*error*/exit(1);   
-
                 memset(buffer, '\0', SIZE * sizeof(char));
             }
         }

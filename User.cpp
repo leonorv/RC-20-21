@@ -55,7 +55,6 @@ int main(int argc, char* const argv[]) {
     hints.ai_family = AF_INET;//IPv4
     hints.ai_socktype = SOCK_STREAM;//TCP socket
 
-    // errcode = getaddrinfo(IP, PORT, &hints, &res);  
     errcode = getaddrinfo(IP, ASport, &hints, &res);  
     if (errcode != 0)/*error*/exit(1);
 
@@ -132,7 +131,7 @@ int main(int argc, char* const argv[]) {
 
             n = read(tcpServerSocket, buffer, SIZE);
             if (n == -1)  exit(1);
-     
+            buffer[n] = '\0';
             write(1, buffer, n);  
 
             char *token_2 = strtok(buffer, " ");
