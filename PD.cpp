@@ -56,9 +56,9 @@ int main(int argc, char* argv[]){
     struct addrinfo hints_c, hints_s, *res_c, *res_s;
     struct sockaddr_in addr_c, addr_s;
     char buffer[SIZE], msg[SIZE];
-    char command[4], uid[5], password[8], filename[50], vc[5], op_name[10], confirmation[8];
+    char command[4], uid[5], password[8], filename[50], vc[5], op_name[16], confirmation[8];
     // char fop[2];
-    char fop;
+    char fop[3];
 
     if (gethostname(ASIP ,SIZE) == -1)
         fprintf(stderr,"error: %s\n",strerror(errno));
@@ -90,7 +90,7 @@ int main(int argc, char* argv[]){
     errcode_s = getaddrinfo(NULL, PDport, &hints_s, &res_s);
     if (errcode_s != 0)/*error*/exit(1);
 
-    if (bind(udpServerSocket, res_s->ai_addr, res_s->ai_addrlen) < 0 ) exit(1);
+    if (bind(udpServerSocket, res_s->ai_addr, res_s->ai_addrlen) < 0) exit(1);
 
     /*==========================
         process standard input
@@ -150,7 +150,7 @@ int main(int argc, char* argv[]){
                 }
                 /* reset buffer */
                 memset(buffer, '\0', SIZE * sizeof(char));
-             }
+            }
             if (FD_ISSET(udpServerSocket, &readfds)) {
                 /*====================================================
                 Receive messages from AS unprovoked
@@ -170,76 +170,43 @@ int main(int argc, char* argv[]){
                   VLC UID VC FOP\n
                 */
                 if (strcmp(command, "VLC") == 0) {
-                    token = strtok(buffer, " ");
+                    token = strtok(NULL, " ");
                     strcpy(uid, token);
-                    token = strtok(buffer, " ");
+                    token = strtok(NULL, " ");
                     strcpy(vc, token);
-                    token = strtok(buffer, " ");
+                    token = strtok(NULL, " ");
                     strcpy(fop, token);
                     if (strcmp(fop, "L") != 0 && strcmp(fop, "X") != 0) {
-                        token = strtok(buffer, " ");
+                        token = strtok(NULL, " ");
                         strcpy(filename, token);
                     } else {
                         filename[0] = '\0';
                     }
                     //int a_as_int = (int)'a';
-                    switch (fop) {
-                        case 'U':
-                            strcpy(op_name, "upload:");
-                            break;
-                        case 'R':
-                            strcpy(op_name, "retrieve:");
-                            break;
-                        case 'D':
-                            strcpy(op_name, "delete:");
-                            break;
-                        case 'L':
-                            strcpy(op_name, "list\n");
-                            break;
-                        case 'X':
-                            strcpy(op_name, "remove\n");
-                            break;
+                    if (strcmp(fop, "U") == 0) {
+                        strcpy(op_name, "upload: ");
+                    } 
+                    else if (strcmp(fop, "R") == 0) {
+                        strcpy(op_name, "retrieve: ");
+                    } 
+                    else if (strcmp(fop, "D") == 0) {
+                        strcpy(op_name, "retrieve: ");
+                    } 
+                    else if (strcmp(fop, "L\n") == 0) {
+                        strcpy(op_name, "list\n");
+                    }  
+                    else if (strcmp(fop, "X\n") == 0) {
+                        strcpy(op_name, "remove\n");
                     }
-                        // else if(flag == 2) {
-                        //     strcpy(fop, token);
-                        //     if(strcmp(fop, "U") == 0) {
-                        //         strcpy(op_name, "upload");
-                        //     }
-                        //     else if(strcmp(fop, "R") == 0) {
-                        //         strcpy(op_name, "retrieve");
-                        //     }
-                        //     else if(strcmp(fop, "D") == 0) {
-                        //         strcpy(op_name, "delete");
-                        //     }
-                        //     else if(strcmp(fop, "L\n") == 0) {
-                        //         strcpy(op_name, "list\n");
-                        //         break;
-                        //     }
-                        //     else if(strcmp(fop, "X\n") == 0) {
-                        //         strcpy(op_name, "remove\n");
-                        //     }
-                        //     flag++;
-                        // }
-                        // else if(flag == 3) {
-                        //     if(token != NULL) {
-                        //         strcpy(filename, token);
-                        //         break;
-                        //     }
-                        //     else{
-                        //         flag=4;
-                        //         break;
-                        //     }
-                        // }
+                    else {
+                        printf("Error!\n");
                     }
-                    // if (strcmp(fop, "L\n") == 0 || strcmp(fop, "X\n") == 0) {
-                    //     printf("VC=%s, %s", vc, op_name);
-                    // }
-                    // else {
-                    //     printf("VC=%s, %s: %s", vc, op_name, filename);
-                    // }
                     
-                    printf("VC=%s, %s %s", vc, op_name, filename);
-                    /*copy confirmation message to buffer*/
+                    /* Print confirmation code to terminal */
+                    printf("VC=%s, %s%s", vc, op_name, filename);
+
+                    /*copy confirmation message to buffer
+                      to send to AS*/
                     strcpy(buffer, "RVC OK\n");
                     n = strlen(buffer);
                 }
