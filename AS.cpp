@@ -19,7 +19,7 @@ using namespace std;
 
 extern int errno;
 
-char PDIP[SIZE], PDport[SIZE], ASIP[SIZE], ASport[SIZE] = "58030", FSIP[SIZE], FSport[SIZE] = "59030";
+char PDIP[SIZE], PDport[SIZE] = "57030", ASIP[SIZE], ASport[SIZE] = "58030", FSIP[SIZE], FSport[SIZE] = "59030";
 
 void processInput(int argc, char* const argv[]) {
     if (argc%2 != 1) {
@@ -39,34 +39,49 @@ void processInput(int argc, char* const argv[]) {
 }
 
 int main(int argc, char* argv[]) {
-    int udpServerSocket, tcpServerSocket;
+    int udpServerSocket, tcpServerSocket, udpClientSocket;
     fd_set readfds;
     int maxfd, retval;
-    struct addrinfo hints, *res;
     int fd, newfd, errcode;
+    struct addrinfo hints_uc, hints_us, hints_ts, *res_uc, *res_ts, *res_us;
     struct sockaddr_in addr;
     socklen_t addrlen;
     ssize_t n, nread, nw;
     char *ptr, buffer[SIZE], check[3], command[4], password[8], uid[6]="", filename[50], vc[5], op_name[16];
+    int maxUsers = 5, connectedUsers = 0;
+    int fdClients[maxUsers];
 
     if (gethostname(ASIP ,SIZE) == -1)
         fprintf(stderr,"error: %s\n",strerror(errno));
 
+    /*==========================
+    Setting up UDP Client Socket
+    ==========================*/
+    udpClientSocket = socket(AF_INET, SOCK_DGRAM, 0);//UDP socket
+        if(udpClientSocket == -1)/*error*/exit(1);
+
+    memset(&hints_uc, 0, sizeof hints_uc);
+    hints_uc.ai_family = AF_INET;//IPv4
+    hints_uc.ai_socktype = SOCK_DGRAM;//UDP socket
+
+    errcode = getaddrinfo(PDIP, PDport, &hints_uc, &res_uc);
+    if (errcode != 0)/*error*/exit(1);
+    
     /*==========================
     Setting up UDP Server Socket
     ==========================*/
     udpServerSocket = socket(AF_INET, SOCK_DGRAM, 0);//UDP socket
     if(udpServerSocket == -1)/*error*/exit(1);
 
-    memset(&hints, 0, sizeof hints);
-    hints.ai_family = AF_INET;//IPv4
-    hints.ai_socktype = SOCK_DGRAM;//UDP socket
-    hints.ai_flags = AI_PASSIVE;
+    memset(&hints_us, 0, sizeof hints_us);
+    hints_us.ai_family = AF_INET;//IPv4
+    hints_us.ai_socktype = SOCK_DGRAM;//UDP socket
+    hints_us.ai_flags = AI_PASSIVE;
 
-    errcode = getaddrinfo(NULL, ASport, &hints, &res);
+    errcode = getaddrinfo(NULL, ASport, &hints_us, &res_us);
     if (errcode != 0)/*error*/exit(1);
 
-    if (bind(udpServerSocket, res->ai_addr, res->ai_addrlen) < 0) exit(1);
+    if (bind(udpServerSocket, res_us->ai_addr, res_us->ai_addrlen) < 0) exit(1);
 
     /*==========================
     Setting up TCP Server Socket
@@ -74,92 +89,103 @@ int main(int argc, char* argv[]) {
     tcpServerSocket = socket(AF_INET, SOCK_STREAM, 0);//TCP socket
     if(tcpServerSocket == -1)/*error*/exit(1);
 
-    memset(&hints, 0, sizeof hints);
-    hints.ai_family = AF_INET;//IPv4
-    hints.ai_socktype = SOCK_STREAM;//TCP socket
-    hints.ai_flags = AI_PASSIVE;
+    memset(&hints_ts, 0, sizeof hints_ts);
+    hints_ts.ai_family = AF_INET;//IPv4
+    hints_ts.ai_socktype = SOCK_STREAM;//TCP socket
+    hints_ts.ai_flags = AI_PASSIVE;
 
-    errcode = getaddrinfo(NULL, ASport, &hints, &res);
+    errcode = getaddrinfo(NULL, ASport, &hints_us, &res_us);
     if (errcode != 0)/*error*/exit(1);
 
-    if (bind(tcpServerSocket, res->ai_addr, res->ai_addrlen) < 0) exit(1);
+    if (bind(tcpServerSocket, res_ts->ai_addr, res_ts->ai_addrlen) < 0) exit(1);
 
     /*==========================
         process standard input
     ==========================*/
     processInput(argc, argv);
 
-    while (1){
+    if (listen(tcpServerSocket, maxUsers) == -1) /*error*/ exit(1);
+
+    while (1) {
         FD_ZERO(&readfds);
         FD_SET(udpServerSocket, &readfds);
         FD_SET(tcpServerSocket, &readfds);
+        maxfd = tcpServerSocket;
 
-        if(listen(tcpServerSocket,5)==-1)/*error*/exit(1);
+        /*==========================
+        Create child sockets
+        ==========================*/
+        for (int i = 0 ; i < maxUsers ; i++) {   
+            //socket descriptor  
+            fd = fdClients[i];   
+                 
+            //if valid socket descriptor then add to read list  
+            if(fd > 0)   
+                FD_SET(fd , &readfds);   
+                 
+            //highest file descriptor number, need it for the select function  
+            if(fd > maxfd)   
+                maxfd = fd;   
+        }   
 
         /*==========================
         Pick the active file descriptor(s)
         ==========================*/
-        maxfd = max(udpServerSocket, tcpServerSocket);
+        maxfd = max(udpServerSocket, maxfd);
         retval = select(maxfd + 1, &readfds, NULL, NULL, NULL);
         if (retval <= 0)/*error*/exit(1);
         
         for (; retval; retval--) {
-            if(FD_ISSET(udpServerSocket, &readfds))
-            {
+            if(FD_ISSET(udpServerSocket, &readfds)) {
                 addrlen = sizeof(addr);
                 n = recvfrom(udpServerSocket, buffer, 128, 0, (struct sockaddr*) &addr, &addrlen);
-                if (n == -1)/*error*/exit(1);
-                buffer[n] = '\0';
-
-                /*separate command*/
-                char *token = strtok(buffer, " ");
-                strcpy(command, token);
-
-                if (strcmp(command, "REG") == 0) {
-                    token = strtok(NULL, " ");
-                    strcpy(uid, token);
-                    token = strtok(NULL, " ");
-                    strcpy(password, token);
-                    token = strtok(NULL, " ");
-                    strcpy(PDIP, token);
-                    token = strtok(NULL, " ");
-                    strcpy(PDport, token);
-                }
-                else if (strcmp(command, "RVC") == 0) {
-                    token = strtok(NULL, " ");
-                    strcpy(check, token);
-                }
-                else
-                {
-                    printf("ERR\n");
-                }  
-                    /* Print confirmation code to terminal */
-                    printf("VC=%s, %s%s", vc, op_name, filename);
-
-                    /*copy confirmation message to buffer
-                      to send to AS*/
-                    strcpy(buffer, "RVC OK\n");
-                    n = strlen(buffer);
+                
                 
                 /*send confirmation message to AS*/
                 n = sendto(udpServerSocket, buffer, n, 0, (struct sockaddr*) &addr, addrlen);
                 if (n == -1)/*error*/exit(1);   
                 memset(buffer, '\0', SIZE * sizeof(char));
             }
-            else if(FD_ISSET(tcpServerSocket, &readfds))
-            {
-                addrlen=sizeof(addr);
-                if ((newfd=accept(fd,(struct sockaddr*)&addr,&addrlen))==-1)/*error*/exit(1);
-                while((n=read(newfd,buffer,SIZE))!=0) {
-                    if (n==-1)/*error*/exit(1);
-                    ptr = &buffer[0];
-                    while (n>0) {
-                        if ((nw=write(newfd,ptr,n))<=0)/*error*/exit(1);
-                        n-=nw; 
-                        ptr+=nw;
-                    } 
-                close(newfd);
-                }
+            else if(FD_ISSET(tcpServerSocket, &readfds)) {
+                addrlen = sizeof(addr);
+                if ((newfd = accept(fd, (struct sockaddr*)&addr,&addrlen)) == -1) /*error*/ exit(1);
+
+                //add new socket to array of sockets  
+                for (int i = 0; i < maxUsers; i++) {   
+                    //if position is empty  
+                    if(fdClients[i] == 0 ) {   
+                        fdClients[i] = newfd;   
+                        break;   
+                    }   
+                } 
+
+                for (int i = 0; i < maxUsers; i++) {   
+                    fd = fdClients[i];   
+                        
+                    if (FD_ISSET(fd, &readfds)) {   
+
+                        /*
+                        //Check if it was for closing , and also read the  
+                        //incoming message  
+                        if ((n = read(fd, buffer, 1024)) == 0) {   
+                            
+                            //Close the socket and mark as 0 in list for reuse  
+                            close(sd);   //// 
+                            fdClients[i] = 0;   
+                        }   
+                        */
+                        //Echo back the message that came in  
+                        else {   
+                            //set the string terminating NULL byte on the end  
+                            //of the data read  
+                            if (n == -1)  exit(1);
+                            buffer[n] = '\0';   
+                            send(fd , buffer , strlen(buffer) , 0 );   
+                        }   
+                    }   
+                } 
+
+
             }
         }
     }
