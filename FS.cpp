@@ -27,6 +27,14 @@ void processInput(int argc, char* const argv[]) {
         exit(1);
     }
     for (int i = 1; i < argc - 1; i++) {
+        if (strcmp(argv[i], "-q") == 0) {
+            strcpy(FSport, argv[i + 1]);
+            continue;
+        }
+        if (strcmp(argv[i], "-n") == 0) {
+            strcpy(ASIP, argv[i + 1]);
+            continue;
+        }
         if (strcmp(argv[i], "-p") == 0) {
             strcpy(ASport, argv[i + 1]);
             continue;
@@ -47,7 +55,7 @@ int main(int argc, char* argv[]) {
     struct sockaddr_in addr;
     socklen_t addrlen;
     ssize_t n, nread, nw;
-    char *ptr, buffer[SIZE], check[3], command[4], password[8], uid[6]="", filename[50], vc[5], op_name[16];
+    char *ptr, buffer[SIZE], check[3], command[4], password[8], uid[6]="", filename[50], vc[5], op_name[16], tid[5];
 
     if (gethostname(ASIP ,SIZE) == -1)
         fprintf(stderr,"error: %s\n",strerror(errno));
@@ -115,19 +123,15 @@ int main(int argc, char* argv[]) {
                 char *token = strtok(buffer, " ");
                 strcpy(command, token);
 
-                if (strcmp(command, "REG") == 0) {
+                if (strcmp(command, "CNF") == 0) {
                     token = strtok(NULL, " ");
                     strcpy(uid, token);
                     token = strtok(NULL, " ");
-                    strcpy(password, token);
+                    strcpy(tid, token);
                     token = strtok(NULL, " ");
-                    strcpy(PDIP, token);
+                    strcpy(op_name, token);
                     token = strtok(NULL, " ");
-                    strcpy(PDport, token);
-                }
-                else if (strcmp(command, "RVC") == 0) {
-                    token = strtok(NULL, " ");
-                    strcpy(check, token);
+                    strcpy(filename, token);
                 }
                 else
                 {
@@ -151,7 +155,20 @@ int main(int argc, char* argv[]) {
                 addrlen=sizeof(addr);
                 if ((newfd=accept(fd,(struct sockaddr*)&addr,&addrlen))==-1)/*error*/exit(1);
                 while((n=read(newfd,buffer,SIZE))!=0) {
-                    if (n==-1)/*error*/exit(1);
+                if (n==-1)/*error*/exit(1);
+
+                char *token = strtok(buffer, " ");
+                strcpy(command, token);
+
+                if (strcmp(command, "RUP") == 0) {
+                    token = strtok(NULL, " ");
+                    strcpy(check, token);
+                }
+                else
+                {
+                    printf("ERR\n");
+                }  
+
                     ptr = &buffer[0];
                     while (n>0) {
                         if ((nw=write(newfd,ptr,n))<=0)/*error*/exit(1);

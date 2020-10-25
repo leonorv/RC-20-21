@@ -1,23 +1,25 @@
 #include <stdlib.h>
 #include <stdio.h>
-#include <sys/select.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/select.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <unistd.h>
 #include <string.h>
 #include <errno.h>
+#include <iostream>
 
 using namespace std;
 
 #define max(A,B)((A)>=(B)?(A):(B))
-#define IP "tejo.tecnico.ulisboa.pt"
+//#define IP "tejo.tecnico.ulisboa.pt"
 #define SIZE 128
 
 extern int errno;
-char PDIP[SIZE], ASIP[SIZE], PDport[SIZE] = "57030", ASport[SIZE] = "58011";
+
+char PDIP[SIZE], ASIP[SIZE], PDport[SIZE] = "57030", ASport[SIZE] = "58030";
 char fixedReg[SIZE];
 
 void processInput(int argc, char* const argv[]) {
@@ -56,9 +58,7 @@ int main(int argc, char* argv[]){
     struct addrinfo hints_c, hints_s, *res_c, *res_s;
     struct sockaddr_in addr_c, addr_s;
     char buffer[SIZE], msg[SIZE];
-    char command[4], uid[5], password[8], filename[50], vc[5], op_name[16], confirmation[8];
-    // char fop[2];
-    char fop[3];
+    char command[4], uid[5], password[8], filename[50], vc[5], op_name[16], confirmation[8], fop[3];
 
     if (gethostname(ASIP ,SIZE) == -1)
         fprintf(stderr,"error: %s\n",strerror(errno));
@@ -73,7 +73,7 @@ int main(int argc, char* argv[]){
     hints_c.ai_family = AF_INET;//IPv4
     hints_c.ai_socktype = SOCK_DGRAM;//UDP socket
 
-    errcode_c = getaddrinfo(IP, ASport, &hints_c ,&res_c);
+    errcode_c = getaddrinfo(ASIP, ASport, &hints_c ,&res_c);
     if (errcode_c != 0)/*error*/exit(1);
     
     /*==========================
@@ -97,7 +97,7 @@ int main(int argc, char* argv[]){
     ==========================*/
     processInput(argc, argv);
     
-    while (1){
+    while (1) {
         FD_ZERO(&readfds);
         FD_SET(afd, &readfds);
         FD_SET(udpClientSocket, &readfds);
@@ -110,7 +110,7 @@ int main(int argc, char* argv[]){
         retval = select(maxfd + 1, &readfds, NULL, NULL, NULL);
         if (retval <= 0)/*error*/exit(1);
         
-        for (; retval; retval--){
+        for (; retval; retval--) {
             if(FD_ISSET(afd, &readfds)){
                 fgets(msg, SIZE, stdin);
                 /* msg is input written in standard input*/
@@ -145,7 +145,8 @@ int main(int argc, char* argv[]){
                 buffer[n] = '\0';
 
                 write(1, buffer, n);
-                if(strcmp(buffer, "RRG OK\n") == 0){
+
+                if (strcmp(buffer, "RRG OK\n") == 0) {
                     printf("Registration successful\n");  
                 }
                 /* reset buffer */

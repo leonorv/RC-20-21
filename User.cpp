@@ -1,19 +1,23 @@
-#include <unistd.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
 #include <netdb.h>
+#include <unistd.h>
 #include <string.h>
+#include <errno.h>
 #include <iostream>
 
 using namespace std;
 
-// #define PORT "58011"
-#define IP "tejo.tecnico.ulisboa.pt"
+//#define IP "tejo.tecnico.ulisboa.pt"
 #define SIZE 128
 
-char ASIP[SIZE], ASport[SIZE] = "58011", FSIP[SIZE], FSport[SIZE] = "59030";
+extern int errno;
+
+char ASIP[SIZE], ASport[SIZE] = "58030", FSIP[SIZE], FSport[SIZE] = "59030";
 
 void processInput(int argc, char* const argv[]) {
     if (argc%2 != 1) {
@@ -41,14 +45,18 @@ void processInput(int argc, char* const argv[]) {
 }
 
 int main(int argc, char* const argv[]) {
+    int tcpSocket, errcode, rID, vc, tid;
+    ssize_t n, nbytes, nleft;
+    socklen_t addrlen;
     struct addrinfo hints, *res;
-    int tcpSocket, errcode, rID, vc;
-    ssize_t n;
-    ssize_t nbytes, nleft, nwritten, nread;
+    struct sockaddr_in addr;
     char *ptr, buffer[SIZE], msg[SIZE], command[4], fop[2], filename[50], uid[6]="";
 
-    gethostname(FSIP, SIZE);
-    gethostname(ASIP, SIZE);
+    if (gethostname(FSIP ,SIZE) == -1)
+        fprintf(stderr,"error: %s\n",strerror(errno));
+
+    if (gethostname(ASIP ,SIZE) == -1)
+        fprintf(stderr,"error: %s\n",strerror(errno));
   
     /*==========================
         Setting up TCP Socket
@@ -60,7 +68,7 @@ int main(int argc, char* const argv[]) {
     hints.ai_family = AF_INET;//IPv4
     hints.ai_socktype = SOCK_STREAM;//TCP socket
 
-    errcode = getaddrinfo(IP, ASport, &hints, &res);  
+    errcode = getaddrinfo(ASIP, ASport, &hints, &res);  
     if (errcode != 0)/*error*/exit(1);
 
     n = connect(tcpSocket, res->ai_addr, res->ai_addrlen);
@@ -105,28 +113,27 @@ int main(int argc, char* const argv[]) {
                     rID = rand() % 9000 + 1000;
 
                     int flag = 0;
-                    while( token != " " ) {
+                    while ( token != " " ) {
                         token = strtok(NULL, " ");
-                        if(flag == 0)
-                        {
+                        if (flag == 0) {
                             strcpy(fop, token);
                             flag = 1;
                         }
-                        else if(flag == 1){
-                            if(token != NULL){
+                        else if (flag == 1) {
+                            if (token != NULL) {
                                 strcpy(filename, token);
                                 break;
                             }
-                            else{
+                            else {
                                 flag = 2;
                                 break;
                             }
                         }
                     } //////////// mudar esta parte das flags
-                    if(flag == 1){
+                    if (flag == 1) {
                          sprintf(ptr, "%s %s %d %s %s", command, uid, rID, fop, filename);
                     }
-                    else if(flag == 2){
+                    else if (flag == 2) {
                         //strcpy(command, "REQ");
                         sprintf(ptr, "REQ %s %d %s", uid, rID, fop);
                     }
@@ -147,16 +154,16 @@ int main(int argc, char* const argv[]) {
             n = read(tcpSocket, buffer, SIZE);
             if (n == -1)  exit(1);
             buffer[n] = '\0';
+
             write(1, buffer, n);  
 
             char *token_2 = strtok(buffer, " ");
             strcpy(command, token_2);
 
-            if(strcmp(command, "RLO")==0){
+            if (strcmp(command, "RLO")==0) {
                 printf("You are now logged in.\n"); 
             }
             else if (strcmp(command, "RAU") == 0) {
-                int tid;
                 token_2 = strtok(NULL, " ");
                 tid = atoi(token_2);
 
