@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <stdio.h>
+#include <map> 
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/select.h>
@@ -10,6 +11,9 @@
 #include <string.h>
 #include <errno.h>
 #include <iostream>
+#include <fstream>
+#include <sys/stat.h> 
+
 
 using namespace std;
 
@@ -39,6 +43,7 @@ void processInput(int argc, char* const argv[]) {
 }
 
 int main(int argc, char* argv[]) {
+    FILE *fptr;
     int udpServerSocket, tcpServerSocket, udpClientSocket;
     fd_set readfds;
     int maxfd, retval;
@@ -47,12 +52,17 @@ int main(int argc, char* argv[]) {
     struct sockaddr_in addr;
     socklen_t addrlen;
     ssize_t n, nread, nw;
-    char *ptr, buffer[SIZE], check[3], command[4], password[8], uid[6]="", filename[50], vc[5], op_name[16];
+    char buffer[SIZE], command[4], password[8], uid[6]="", filename[50], vc[5], op_name[16], *ptr;
     int maxUsers = 5, connectedUsers = 0;
     int fdClients[maxUsers];
+    char dirName[SIZE];
+    char pdport[5], pdip[SIZE];
+
 
     if (gethostname(ASIP ,SIZE) == -1)
         fprintf(stderr,"error: %s\n",strerror(errno));
+
+    int check = mkdir("users", 0777);
 
     /*==========================
     Setting up UDP Client Socket
@@ -102,7 +112,8 @@ int main(int argc, char* argv[]) {
     /*==========================
         process standard input
     ==========================*/
-    processInput(argc, argv);
+    // processInput(argc, argv);
+
 
     if (listen(tcpServerSocket, maxUsers) == -1) /*error*/ exit(1);
 
@@ -139,9 +150,60 @@ int main(int argc, char* argv[]) {
             if(FD_ISSET(udpServerSocket, &readfds)) {
                 addrlen = sizeof(addr);
                 n = recvfrom(udpServerSocket, buffer, 128, 0, (struct sockaddr*) &addr, &addrlen);
+
+                //TODO: INPUT VERIFICATIONS
+                char *token = strtok(buffer, " ");
+                strcpy(uid, token);
+                token = strtok(NULL, " ");
+                strcpy(command, token);
+
+                if (strcmp(command, "REG") == 0) {
+                    
+                    /*=== process user ID ===*/
+                    token = strtok(NULL, " ");
+                    strcpy(uid, token);
+                    if (!uid)
+                        printf("ERROR: no uid\n");
+                    else { 
+                    }
+                    
+                    /*=== process user ID ===*/
+                    token = strtok(NULL, " ");
+                    strcpy(password, token);
+                    if (!password) {
+
+                    }
+                    strcpy(dirName, "users/");
+                    strcat(dirName, uid);
+                    mkdir(dirName, 0777);
+                    strcat(dirName, "/password.txt");
+                    ofstream userPass(dirName); 
+                    userPass << password;
+                    userPass.close();
+
+                    token = strtok(NULL, " ");
+                    strcpy(pdip, token);
+                    if (!pdip) {
+
+                    }
+
+
+                    token = strtok(NULL, " ");
+                    strcpy(pdport, token);
+                    if (!pdport){
+
+                    }
+                    strcat(uid, "/userID_reg.txt");
+                    ofstream userCred(uid); 
+                    userCred << pdip;
+                    userCred << pdport;
+                    userCred.close();
+                }
+
+                strcpy(buffer, "RRG OK\n");
                 
                 
-                /*send confirmation message to AS*/
+                /*sends ok or not ok to pd*/
                 n = sendto(udpServerSocket, buffer, n, 0, (struct sockaddr*) &addr, addrlen);
                 if (n == -1)/*error*/exit(1);   
                 memset(buffer, '\0', SIZE * sizeof(char));
@@ -161,7 +223,6 @@ int main(int argc, char* argv[]) {
 
                 for (int i = 0; i < maxUsers; i++) {   
                     fd = fdClients[i];   
-                        
                     if (FD_ISSET(fd, &readfds)) {   
 
                         /*
@@ -175,13 +236,13 @@ int main(int argc, char* argv[]) {
                         }   
                         */
                         //Echo back the message that came in  
-                        else {   
+                        /*else {   
                             //set the string terminating NULL byte on the end  
                             //of the data read  
                             if (n == -1)  exit(1);
                             buffer[n] = '\0';   
                             send(fd , buffer , strlen(buffer) , 0 );   
-                        }   
+                        }   */
                     }   
                 } 
 
