@@ -9,6 +9,7 @@
 #include <netdb.h>
 #include <unistd.h>
 #include <string.h>
+#include <dirent.h>
 #include <errno.h>
 #include <iostream>
 #include <fstream>
@@ -24,6 +25,22 @@ using namespace std;
 extern int errno;
 
 char PDIP[SIZE], PDport[SIZE] = "57030", ASIP[SIZE], ASport[SIZE] = "58030", FSIP[SIZE], FSport[SIZE] = "59030";
+
+const int maxUsers = 5;
+FILE *fptr;
+int udpServerSocket, tcpServerSocket, udpClientSocket;
+fd_set readfds;
+int maxfd, retval;
+int fd, newfd, errcode;
+struct addrinfo hints_uc, hints_us, hints_ts, *res_uc, *res_ts, *res_us;
+struct sockaddr_in addr;
+socklen_t addrlen;
+ssize_t n, nread, nw;
+char buffer[SIZE], command[4], password[SIZE], uid[SIZE], *ptr;
+int connectedUsers = 0;
+int fdClients[maxUsers];
+char *dirName;
+char pdport[SIZE], pdip[SIZE];
 
 void processInput(int argc, char* const argv[]) {
     if (argc%2 != 1) {
@@ -42,80 +59,117 @@ void processInput(int argc, char* const argv[]) {
     }
 }
 
-int main(int argc, char* argv[]) {
-    FILE *fptr;
-    int udpServerSocket, tcpServerSocket, udpClientSocket;
-    fd_set readfds;
-    int maxfd, retval;
-    int fd, newfd, errcode;
-    struct addrinfo hints_uc, hints_us, hints_ts, *res_uc, *res_ts, *res_us;
-    struct sockaddr_in addr;
-    socklen_t addrlen;
-    ssize_t n, nread, nw;
-    char buffer[SIZE], command[4], password[8], uid[6]="", filename[50], vc[5], op_name[16], *ptr;
-    int maxUsers = 5, connectedUsers = 0;
-    int fdClients[maxUsers];
-    char dirName[SIZE];
-    char pdport[5], pdip[SIZE];
-
-
-    if (gethostname(ASIP ,SIZE) == -1)
-        fprintf(stderr,"error: %s\n",strerror(errno));
-
-    int check = mkdir("users", 0777);
-
-    /*==========================
-    Setting up UDP Client Socket
-    ==========================*/
-    udpClientSocket = socket(AF_INET, SOCK_DGRAM, 0);//UDP socket
-        if(udpClientSocket == -1)/*error*/exit(1);
-
+void setupUDPClientSocket() {
+    udpClientSocket = socket(AF_INET, SOCK_DGRAM, 0); //UDP socket
+    if (udpClientSocket == -1) /*error*/exit(1);
     memset(&hints_uc, 0, sizeof hints_uc);
-    hints_uc.ai_family = AF_INET;//IPv4
-    hints_uc.ai_socktype = SOCK_DGRAM;//UDP socket
-
+    hints_uc.ai_family = AF_INET; //IPv4
+    hints_uc.ai_socktype = SOCK_DGRAM; //UDP socket
     errcode = getaddrinfo(PDIP, PDport, &hints_uc, &res_uc);
-    if (errcode != 0)/*error*/exit(1);
-    
-    /*==========================
-    Setting up UDP Server Socket
-    ==========================*/
+    //guardar info somehow
+    memset(PDIP, '\0', SIZE * sizeof(char));
+    memset(PDport, '\0', SIZE * sizeof(char));
+    if (errcode != 0) /*error*/ exit(1);
+}
+
+void setupUDPServerSocket() {
     udpServerSocket = socket(AF_INET, SOCK_DGRAM, 0);//UDP socket
     if(udpServerSocket == -1)/*error*/exit(1);
-
     memset(&hints_us, 0, sizeof hints_us);
     hints_us.ai_family = AF_INET;//IPv4
     hints_us.ai_socktype = SOCK_DGRAM;//UDP socket
     hints_us.ai_flags = AI_PASSIVE;
-
     errcode = getaddrinfo(NULL, ASport, &hints_us, &res_us);
     if (errcode != 0)/*error*/exit(1);
-
     if (bind(udpServerSocket, res_us->ai_addr, res_us->ai_addrlen) < 0) exit(1);
+}
 
-    /*==========================
-    Setting up TCP Server Socket
-    ==========================*/
+void setupTCPServerSocket() {
     tcpServerSocket = socket(AF_INET, SOCK_STREAM, 0);//TCP socket
     if(tcpServerSocket == -1)/*error*/exit(1);
-
+    // printf("tcp != -1\n");
     memset(&hints_ts, 0, sizeof hints_ts);
     hints_ts.ai_family = AF_INET;//IPv4
     hints_ts.ai_socktype = SOCK_STREAM;//TCP socket
     hints_ts.ai_flags = AI_PASSIVE;
-
-    errcode = getaddrinfo(NULL, ASport, &hints_us, &res_us);
+    errcode = getaddrinfo(NULL, ASport, &hints_ts, &res_ts);
+    // printf("getaddrinfo\n");
     if (errcode != 0)/*error*/exit(1);
-
     if (bind(tcpServerSocket, res_ts->ai_addr, res_ts->ai_addrlen) < 0) exit(1);
+}
+
+
+int checkRegisterInput(char buffer[SIZE]) {
+    
+    /*=== process user ID ===*/
+
+    sscanf(buffer, "REG %[0-9] %[0-9a-zA-Z] %[0-9.] %[0-9]\n", uid, password, pdip, pdport);
+    if (uid == NULL || strlen(uid) != 5) return 0;
+    if (password == NULL || strlen(password) != 8) return 0;
+    if (pdip == NULL) return 0;
+    if (pdport == NULL || strlen(pdport) != 5) return 0;
+
+    dirName = strdup("users/");
+    strcat(dirName, uid);
+    // DIR* dir = opendir(dirName);
+    // printf("%",dir);
+    int error = mkdir(dirName, 0777);
+    printf("erro do mkdir:%d\n", error); fflush(stdout);
+
+
+    if (error == -1) { 
+        // If User has already been registered
+        char filename[SIZE];
+        char passBuffer[9];
+        printf("User has already been reg\n");
+        fflush(stdout);
+        
+        strcpy(filename, dirName);
+        strcpy(filename, "/password.txt");
+        FILE *f = fopen(filename, "r");
+        fgets(passBuffer, sizeof(passBuffer), f);
+        printf("passbuffer: %s\n", passBuffer);
+        // Check password
+        if (strcmp(passBuffer, password) != 0) /*password is incorrect*/ return 0;
+
+        fclose(f);
+        memset(filename, '\0', SIZE * sizeof(char));
+        memset(passBuffer, '\0', 9 * sizeof(char));
+
+
+    }
+    else {
+        // If User has not been registered
+        // Create user directory
+        strcat(dirName, "/password.txt");
+        ofstream userPass; 
+        userPass.open(dirName);
+        userPass << password;
+        userPass.close();
+    }
+    memset(uid, '\0', SIZE * sizeof(char));
+    memset(password, '\0', SIZE * sizeof(char));
+    memset(pdip, '\0', SIZE * sizeof(char));
+    memset(pdport, '\0', SIZE * sizeof(char));
+}
+
+int main(int argc, char* argv[]) {
+    if (gethostname(ASIP ,SIZE) == -1)
+        fprintf(stderr,"error: %s\n", strerror(errno));
+
+    int check = mkdir("users", 0777);
+
+    setupUDPServerSocket();
+    setupTCPServerSocket();
 
     /*==========================
         process standard input
     ==========================*/
-    // processInput(argc, argv);
+    processInput(argc, argv);
 
 
-    if (listen(tcpServerSocket, maxUsers) == -1) /*error*/ exit(1);
+    if (listen(tcpServerSocket, maxUsers) == -1)
+        /*error*/ exit(1);
 
     while (1) {
         FD_ZERO(&readfds);
@@ -150,49 +204,11 @@ int main(int argc, char* argv[]) {
             if(FD_ISSET(udpServerSocket, &readfds)) {
                 addrlen = sizeof(addr);
                 n = recvfrom(udpServerSocket, buffer, 128, 0, (struct sockaddr*) &addr, &addrlen);
-
-                //TODO: INPUT VERIFICATIONS
-                char *token = strtok(buffer, " ");
-                strcpy(uid, token);
-                token = strtok(NULL, " ");
-                strcpy(command, token);
-
+                strncpy(command, buffer, 3);
                 if (strcmp(command, "REG") == 0) {
-                    
-                    /*=== process user ID ===*/
-                    token = strtok(NULL, " ");
-                    strcpy(uid, token);
-                    if (!uid)
-                        printf("ERROR: no uid\n");
-                    else { 
-                    }
-                    
-                    /*=== process user ID ===*/
-                    token = strtok(NULL, " ");
-                    strcpy(password, token);
-                    if (!password) {
-
-                    }
-                    strcpy(dirName, "users/");
-                    strcat(dirName, uid);
-                    mkdir(dirName, 0777);
-                    strcat(dirName, "/password.txt");
-                    ofstream userPass(dirName); 
-                    userPass << password;
-                    userPass.close();
-
-                    token = strtok(NULL, " ");
-                    strcpy(pdip, token);
-                    if (!pdip) {
-
-                    }
-
-
-                    token = strtok(NULL, " ");
-                    strcpy(pdport, token);
-                    if (!pdport){
-
-                    }
+                    printf("MIGO; CHEGAS AQUI??\n"); 
+                    printf("buffer:%s\n", buffer); fflush(stdout);
+                    checkRegisterInput(buffer);
                     strcat(uid, "/userID_reg.txt");
                     ofstream userCred(uid); 
                     userCred << pdip;
@@ -202,10 +218,10 @@ int main(int argc, char* argv[]) {
 
                 strcpy(buffer, "RRG OK\n");
                 
-                
                 /*sends ok or not ok to pd*/
                 n = sendto(udpServerSocket, buffer, n, 0, (struct sockaddr*) &addr, addrlen);
-                if (n == -1)/*error*/exit(1);   
+                if (n == -1)/*error*/exit(1); 
+                memset(command, '\0', 4 * sizeof(char));
                 memset(buffer, '\0', SIZE * sizeof(char));
             }
             else if(FD_ISSET(tcpServerSocket, &readfds)) {

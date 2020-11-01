@@ -144,7 +144,7 @@ int main(int argc, char* argv[]){
                 if (n == -1)/*error*/exit(1);
                 buffer[n] = '\0';
 
-                write(1, buffer, n);
+                //write(1, buffer, n);
 
                 if (strcmp(buffer, "RRG OK\n") == 0) {
                     printf("Registration successful\n");  
