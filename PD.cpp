@@ -19,7 +19,7 @@ using namespace std;
 
 extern int errno;
 
-char PDIP[SIZE], ASIP[SIZE], PDport[SIZE] = "57030", ASport[SIZE] = "58030";
+char PDIP[SIZE], PDport[SIZE] = "57030", ASport[SIZE] = "58030", ASIP[SIZE];
 char fixedReg[SIZE];
 
 void processInput(int argc, char* const argv[]) {
@@ -119,6 +119,15 @@ int main(int argc, char* argv[]){
                     /*====================================================
                     Free data structures and close socket connections
                     ====================================================*/
+                    memset(msg, '\0', SIZE * sizeof(char));
+                    strcpy(msg, "UNR ");
+                    strcat(msg, uid);
+                    strcat(msg, " ");
+                    strcat(msg, password);
+                    strcat(msg, "\n");
+
+                    n = sendto(udpClientSocket, msg, strlen(msg), 0, res_c->ai_addr, res_c->ai_addrlen);
+
                     freeaddrinfo(res_c);
                     freeaddrinfo(res_s);
                     close(udpClientSocket);
@@ -129,7 +138,11 @@ int main(int argc, char* argv[]){
                     /*====================================================
                     Send message from stdin to the server
                     ====================================================*/
-                    strcat(strcat(msg, " "), fixedReg);              
+                    /* msg = "REG 99999 password" */
+
+                    sscanf(msg, "REG %s %s\n", uid, password);
+
+                    strcat(strcat(msg, " "), fixedReg);      
                     n = sendto(udpClientSocket, msg, strlen(msg), 0, res_c->ai_addr, res_c->ai_addrlen);
                     if (n == -1)/*error*/exit(1);     
                 }
@@ -143,8 +156,6 @@ int main(int argc, char* argv[]){
                 n = recvfrom(udpClientSocket, buffer, 128, 0, (struct sockaddr*) &addr_c, &addrlen_c);
                 if (n == -1)/*error*/exit(1);
                 buffer[n] = '\0';
-
-                //write(1, buffer, n);
 
                 if (strcmp(buffer, "RRG OK\n") == 0) {
                     printf("Registration successful\n");  

@@ -15,7 +15,6 @@
 #include <fstream>
 #include <sys/stat.h> 
 
-
 using namespace std;
 
 #define max(A,B)((A)>=(B)?(A):(B))
@@ -24,7 +23,7 @@ using namespace std;
 
 extern int errno;
 
-char PDIP[SIZE], PDport[SIZE] = "57030", ASIP[SIZE], ASport[SIZE] = "58030", FSIP[SIZE], FSport[SIZE] = "59030";
+char ASport[SIZE] = "58030", ASIP[SIZE], PDport[SIZE], PDIP[SIZE] , FSport[SIZE], FSIP[SIZE];
 
 const int maxUsers = 5;
 FILE *fptr;
@@ -36,10 +35,10 @@ struct addrinfo hints_uc, hints_us, hints_ts, *res_uc, *res_ts, *res_us;
 struct sockaddr_in addr;
 socklen_t addrlen;
 ssize_t n, nread, nw;
-char buffer[SIZE], command[4], password[SIZE], uid[SIZE], *ptr;
+char buffer[SIZE], command[SIZE], password[SIZE], uid[SIZE], *ptr;
 int connectedUsers = 0;
 int fdClients[maxUsers];
-char *dirName;
+char dirName[SIZE];
 char pdport[SIZE], pdip[SIZE];
 
 void processInput(int argc, char* const argv[]) {
@@ -99,9 +98,8 @@ void setupTCPServerSocket() {
 }
 
 
-int checkRegisterInput(char buffer[SIZE]) {
-    
-    /*=== process user ID ===*/
+int checkRegisterInput(char buffer[SIZE]) {    
+    char filename[SIZE];
 
     sscanf(buffer, "REG %[0-9] %[0-9a-zA-Z] %[0-9.] %[0-9]\n", uid, password, pdip, pdport);
     if (uid == NULL || strlen(uid) != 5) return 0;
@@ -109,48 +107,102 @@ int checkRegisterInput(char buffer[SIZE]) {
     if (pdip == NULL) return 0;
     if (pdport == NULL || strlen(pdport) != 5) return 0;
 
-    dirName = strdup("users/");
+    strcpy(dirName, "users/");
     strcat(dirName, uid);
-    // DIR* dir = opendir(dirName);
-    // printf("%",dir);
     int error = mkdir(dirName, 0777);
-    printf("erro do mkdir:%d\n", error); fflush(stdout);
 
+    strcpy(filename, dirName);
+    strcat(filename, "/password.txt");
 
     if (error == -1) { 
-        // If User has already been registered
-        char filename[SIZE];
+        /* If User has already been registered */
         char passBuffer[9];
-        printf("User has already been reg\n");
-        fflush(stdout);
-        
-        strcpy(filename, dirName);
-        strcpy(filename, "/password.txt");
         FILE *f = fopen(filename, "r");
-        fgets(passBuffer, sizeof(passBuffer), f);
-        printf("passbuffer: %s\n", passBuffer);
-        // Check password
+        fgets(passBuffer, strlen(passBuffer), f);
+        /* Check password */
         if (strcmp(passBuffer, password) != 0) /*password is incorrect*/ return 0;
-
         fclose(f);
-        memset(filename, '\0', SIZE * sizeof(char));
         memset(passBuffer, '\0', 9 * sizeof(char));
-
 
     }
     else {
-        // If User has not been registered
-        // Create user directory
-        strcat(dirName, "/password.txt");
+        /* If User has not been registered */
+        /* Create user directory */
         ofstream userPass; 
-        userPass.open(dirName);
+        userPass.open(filename);
         userPass << password;
         userPass.close();
     }
+
+    memset(filename, '\0', SIZE * sizeof(char));
+    strcpy(filename, dirName);
+    strcat(filename, "/reg.txt");
+
+    ofstream userCred; 
+    userCred.open(filename, ofstream::out | ofstream::trunc);
+    userCred.close();
+    userCred.open(filename);
+    userCred << pdip;
+    userCred << '\n';
+    userCred << pdport;
+    userCred.close();
+
+    memset(dirName, '\0', SIZE * sizeof(char));
+    memset(filename, '\0', SIZE * sizeof(char));
     memset(uid, '\0', SIZE * sizeof(char));
     memset(password, '\0', SIZE * sizeof(char));
     memset(pdip, '\0', SIZE * sizeof(char));
     memset(pdport, '\0', SIZE * sizeof(char));
+
+    return 1;
+}
+
+int checkUnregisterInput(char buffer[SIZE]) {
+    char filename[SIZE];
+
+    sscanf(buffer, "UNR %[0-9] %[0-9a-zA-Z]\n", uid, password);
+
+    printf("uid:%s password:%s\n", uid, password);
+
+    strcpy(dirName, "users/");
+    strcat(dirName, uid);
+
+    int error = mkdir(dirName, 0777);
+
+    if (error == -1) { 
+        /* If User had already been registered */
+        
+        strcpy(filename, dirName);
+        strcat(filename, "/password.txt");
+
+        char passBuffer[9];
+        FILE *f = fopen(filename, "r");
+        fgets(passBuffer, strlen(passBuffer), f);
+        /* Check password */
+        if (strcmp(passBuffer, password) != 0) {
+            /*password is incorrect*/ 
+            return 0;
+        }
+        fclose(f);
+        memset(passBuffer, '\0', 9 * sizeof(char));
+
+        /* delete directory */
+        printf("going to remove %s\n", filename);
+        fflush(stdout);
+        remove(filename); /* remove password.txt */
+        memset(filename, '\0', SIZE * sizeof(char));
+        strcpy(filename, dirName);
+        strcat(filename, "/reg.txt");   
+        remove(filename); /* remove reg.txt */
+        rmdir(dirName);
+    }
+    else {
+        /* user directory does not exist */
+        rmdir(dirName);
+        return 0;
+    }
+
+    return 1;    
 }
 
 int main(int argc, char* argv[]) {
@@ -166,7 +218,6 @@ int main(int argc, char* argv[]) {
         process standard input
     ==========================*/
     processInput(argc, argv);
-
 
     if (listen(tcpServerSocket, maxUsers) == -1)
         /*error*/ exit(1);
@@ -204,24 +255,35 @@ int main(int argc, char* argv[]) {
             if(FD_ISSET(udpServerSocket, &readfds)) {
                 addrlen = sizeof(addr);
                 n = recvfrom(udpServerSocket, buffer, 128, 0, (struct sockaddr*) &addr, &addrlen);
-                strncpy(command, buffer, 3);
-                if (strcmp(command, "REG") == 0) {
-                    printf("MIGO; CHEGAS AQUI??\n"); 
-                    printf("buffer:%s\n", buffer); fflush(stdout);
-                    checkRegisterInput(buffer);
-                    strcat(uid, "/userID_reg.txt");
-                    ofstream userCred(uid); 
-                    userCred << pdip;
-                    userCred << pdport;
-                    userCred.close();
-                }
 
-                strcpy(buffer, "RRG OK\n");
+                printf("buffer: %s\n", buffer);
+                fflush(stdout);
+
+                /* get command code */
+                strncpy(command, buffer, 3);
+
+                printf("command: %s\n", command);
+
+                if (strcmp(command, "REG") == 0) {
+                    if (checkRegisterInput(buffer)) {
+                        strcpy(buffer, "RRG OK\n");
+                        printf("PD: new user, UID=%s\n", uid);
+                    }
+                    else 
+                        strcpy(buffer, "RRG NOK\n");
+                }
+                else if (strcmp(command, "UNR") == 0) {
+                    if (checkUnregisterInput(buffer)){
+                        strcpy(buffer, "RUN OK\n");
+                    }
+                    else
+                        strcpy(buffer, "RUN NOK\n");
+                }
                 
                 /*sends ok or not ok to pd*/
                 n = sendto(udpServerSocket, buffer, n, 0, (struct sockaddr*) &addr, addrlen);
                 if (n == -1)/*error*/exit(1); 
-                memset(command, '\0', 4 * sizeof(char));
+                memset(command, '\0', SIZE * sizeof(char));
                 memset(buffer, '\0', SIZE * sizeof(char));
             }
             else if(FD_ISSET(tcpServerSocket, &readfds)) {
@@ -261,8 +323,6 @@ int main(int argc, char* argv[]) {
                         }   */
                     }   
                 } 
-
-
             }
         }
     }
