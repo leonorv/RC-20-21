@@ -35,7 +35,7 @@ struct addrinfo hints_uc, hints_us, hints_ts, *res_uc, *res_ts, *res_us;
 struct sockaddr_in addr;
 socklen_t addrlen;
 ssize_t n, nread, nw;
-char buffer[SIZE], command[SIZE], password[SIZE], uid[SIZE], *ptr;
+char buffer[SIZE], command[SIZE], password[SIZE], uid[SIZE], *ptr, rid[SIZE], fop;
 int connectedUsers = 0;
 int fdClients[maxUsers];
 char dirName[SIZE];
@@ -58,14 +58,13 @@ void processInput(int argc, char* const argv[]) {
     }
 }
 
-void setupUDPClientSocket() {
+void setupUDPClientSocket(char PDIP[SIZE], char PDport[SIZE]) {
     udpClientSocket = socket(AF_INET, SOCK_DGRAM, 0); //UDP socket
     if (udpClientSocket == -1) /*error*/exit(1);
     memset(&hints_uc, 0, sizeof hints_uc);
     hints_uc.ai_family = AF_INET; //IPv4
     hints_uc.ai_socktype = SOCK_DGRAM; //UDP socket
     errcode = getaddrinfo(PDIP, PDport, &hints_uc, &res_uc);
-    //guardar info somehow
     memset(PDIP, '\0', SIZE * sizeof(char));
     memset(PDport, '\0', SIZE * sizeof(char));
     if (errcode != 0) /*error*/ exit(1);
@@ -97,7 +96,7 @@ void setupTCPServerSocket() {
 
 
 int checkRegisterInput(char buffer[SIZE]) {    
-    char filename[SIZE];
+    char filename[SIZE], password[SIZE], uid[SIZE], pdip[SIZE], pdport[SIZE], driName[SIZE];
 
     sscanf(buffer, "REG %[0-9] %[0-9a-zA-Z] %[0-9.] %[0-9]\n", uid, password, pdip, pdport);
     if (uid == NULL || strlen(uid) != 5) return 0;
@@ -145,18 +144,11 @@ int checkRegisterInput(char buffer[SIZE]) {
     userCred << pdport;
     userCred.close();
 
-    memset(dirName, '\0', SIZE * sizeof(char));
-    memset(filename, '\0', SIZE * sizeof(char));
-    memset(uid, '\0', SIZE * sizeof(char));
-    memset(password, '\0', SIZE * sizeof(char));
-    memset(pdip, '\0', SIZE * sizeof(char));
-    memset(pdport, '\0', SIZE * sizeof(char));
-
     return 1;
 }
 
 int checkUnregisterInput(char buffer[SIZE]) {
-    char filename[SIZE];
+    char filename[SIZE], uid[SIZE], password[SIZE], dirName[SIZE];
 
     sscanf(buffer, "UNR %[0-9] %[0-9a-zA-Z]\n", uid, password);
 
@@ -195,7 +187,7 @@ int checkUnregisterInput(char buffer[SIZE]) {
 }
 
 int checkLoginInput(char buffer[SIZE]) {
-    char filename[SIZE];
+    char filename[SIZE], uid[SIZE], password[SIZE], dirName[SIZE];
 
     sscanf(buffer, "LOG %[0-9] %[0-9a-zA-Z]\n", uid, password);
 
@@ -232,8 +224,34 @@ int checkLoginInput(char buffer[SIZE]) {
         rmdir(dirName);
         return 0;
     }
+}
+
+int checkRequestInput(char buffer[SIZE]) {
+    char filename[SIZE], uid[SIZE], rid[SIZE], fop[SIZE], dirName[SIZE];
+
+    sscanf(buffer, "REQ %[0-9] %[a-zA-Z] %c %s\n", uid, rid, fop, filename);
+
+    strcpy(dirName, "users/");
+    strcat(dirName, uid);
+
+    int error = mkdir(dirName, 0777);
+
+    if (error != -1) /*error*/ perror("REQ - user does not exist");
+
+    strcpy(filename, dirName);
+    strcat(filename, "/reg.txt");
+    string inFileIP;
+    string inFilePort;
+    ifstream inFile;
+    inFile.open(filename);
+    getline(inFile, inFileIP);
+    getline(inFile, inFilePort);
+    inFile.close();
 
 
+    strcpy(pdip, inFileIP.c_str());
+    strcpy(pdport, inFilePort.c_str());
+    setupUDPClientSocket(pdip, pdport);
 }
 
 
@@ -364,10 +382,20 @@ int main(int argc, char* argv[]) {
                                     perror("RLO send");
                         
                             }
+
+                            else if (strcmp(command, "REQ") == 0) {
+                                if (checkRequestInput(buffer)) {
+                                    printf("checkou request\n");
+                                    fflush(stdout);
+                                    strcpy(buffer, "RRQ OK\n");
+
+                                    if (send(udpClientSocket, buffer, strlen(buffer), 0) != strlen(buffer)) 
+                                        perror("VLC send");
+                                }
+                                else 
+                                    strcpy(buffer, "RRQ NOK\n");
+                            }
                         }  
-
-                       
-
                     }   
                 } 
             }
