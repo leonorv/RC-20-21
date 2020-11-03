@@ -86,13 +86,11 @@ void setupUDPServerSocket() {
 void setupTCPServerSocket() {
     tcpServerSocket = socket(AF_INET, SOCK_STREAM, 0);//TCP socket
     if(tcpServerSocket == -1)/*error*/exit(1);
-    // printf("tcp != -1\n");
     memset(&hints_ts, 0, sizeof hints_ts);
     hints_ts.ai_family = AF_INET;//IPv4
     hints_ts.ai_socktype = SOCK_STREAM;//TCP socket
     hints_ts.ai_flags = AI_PASSIVE;
     errcode = getaddrinfo(NULL, ASport, &hints_ts, &res_ts);
-    // printf("getaddrinfo\n");
     if (errcode != 0)/*error*/exit(1);
     if (bind(tcpServerSocket, res_ts->ai_addr, res_ts->ai_addrlen) < 0) exit(1);
 }
@@ -162,48 +160,83 @@ int checkUnregisterInput(char buffer[SIZE]) {
 
     sscanf(buffer, "UNR %[0-9] %[0-9a-zA-Z]\n", uid, password);
 
-    printf("uid:%s password:%s\n", uid, password);
-
     strcpy(dirName, "users/");
     strcat(dirName, uid);
 
     int error = mkdir(dirName, 0777);
 
-    if (error == -1) { 
-        /* If User had already been registered */
-        
+    if (error == -1) {  /* If User had already been registered */
+
         strcpy(filename, dirName);
         strcat(filename, "/password.txt");
-
-        char passBuffer[9];
-        FILE *f = fopen(filename, "r");
-        fgets(passBuffer, strlen(passBuffer), f);
-        /* Check password */
-        if (strcmp(passBuffer, password) != 0) {
+        string inFilePass;
+        ifstream inFile;
+        inFile.open(filename);
+        getline(inFile, inFilePass);
+        if (strcmp(inFilePass.c_str(), password) != 0) {
             /*password is incorrect*/ 
             return 0;
         }
-        fclose(f);
-        memset(passBuffer, '\0', 9 * sizeof(char));
+        inFile.close();
 
         /* delete directory */
-        printf("going to remove %s\n", filename);
-        fflush(stdout);
         remove(filename); /* remove password.txt */
         memset(filename, '\0', SIZE * sizeof(char));
         strcpy(filename, dirName);
         strcat(filename, "/reg.txt");   
         remove(filename); /* remove reg.txt */
         rmdir(dirName);
+        return 1;    
     }
-    else {
-        /* user directory does not exist */
+    else { /* user directory does not exist */
+        rmdir(dirName);
+        return 0;
+    }
+}
+
+int checkLoginInput(char buffer[SIZE]) {
+    char filename[SIZE];
+
+    sscanf(buffer, "LOG %[0-9] %[0-9a-zA-Z]\n", uid, password);
+
+    strcpy(dirName, "users/");
+    strcat(dirName, uid);
+
+    int error = mkdir(dirName, 0777);
+
+    if (error == -1) {  /* If User had already been registered */
+
+        strcpy(filename, dirName);
+        strcat(filename, "/password.txt");
+        string inFilePass;
+        ifstream inFile;
+        inFile.open(filename);
+        getline(inFile, inFilePass);
+        if (strcmp(inFilePass.c_str(), password) != 0) {
+            /*password is incorrect*/ 
+            return 0;
+        }
+        inFile.close();
+
+        /* Create temp login file */
+        char tempfileName[SIZE];
+        strcpy(tempfileName, dirName);
+        strcat(tempfileName, "/login.txt");
+        ofstream userLogReg; 
+        userLogReg.open(tempfileName);
+        userLogReg.close();
+
+        return 1;    
+    }
+    else { /* user directory does not exist */
         rmdir(dirName);
         return 0;
     }
 
-    return 1;    
+
 }
+
+
 
 int main(int argc, char* argv[]) {
     if (gethostname(ASIP ,SIZE) == -1)
@@ -214,6 +247,10 @@ int main(int argc, char* argv[]) {
     setupUDPServerSocket();
     setupTCPServerSocket();
 
+    /* Initialize TCP babies fds */
+    for (int i = 0; i < maxUsers; i++) {   
+        fdClients[i] = 0;
+    } 
     /*==========================
         process standard input
     ==========================*/
@@ -256,24 +293,20 @@ int main(int argc, char* argv[]) {
                 addrlen = sizeof(addr);
                 n = recvfrom(udpServerSocket, buffer, 128, 0, (struct sockaddr*) &addr, &addrlen);
 
-                printf("buffer: %s\n", buffer);
                 fflush(stdout);
 
                 /* get command code */
                 strncpy(command, buffer, 3);
 
-                printf("command: %s\n", command);
-
                 if (strcmp(command, "REG") == 0) {
                     if (checkRegisterInput(buffer)) {
                         strcpy(buffer, "RRG OK\n");
-                        printf("PD: new user, UID=%s\n", uid);
                     }
                     else 
                         strcpy(buffer, "RRG NOK\n");
                 }
                 else if (strcmp(command, "UNR") == 0) {
-                    if (checkUnregisterInput(buffer)){
+                    if (checkUnregisterInput(buffer)) {
                         strcpy(buffer, "RUN OK\n");
                     }
                     else
@@ -288,42 +321,55 @@ int main(int argc, char* argv[]) {
             }
             else if(FD_ISSET(tcpServerSocket, &readfds)) {
                 addrlen = sizeof(addr);
-                if ((newfd = accept(fd, (struct sockaddr*)&addr,&addrlen)) == -1) /*error*/ exit(1);
+                if ((newfd = accept(tcpServerSocket, (struct sockaddr*)&addr, &addrlen)) == -1) /*error*/ exit(1);
 
                 //add new socket to array of sockets  
                 for (int i = 0; i < maxUsers; i++) {   
                     //if position is empty  
-                    if(fdClients[i] == 0 ) {   
+                    if(fdClients[i] == 0 ) {  
                         fdClients[i] = newfd;   
                         break;   
                     }   
                 } 
+            }
 
                 for (int i = 0; i < maxUsers; i++) {   
                     fd = fdClients[i];   
                     if (FD_ISSET(fd, &readfds)) {   
-
-                        /*
-                        //Check if it was for closing , and also read the  
-                        //incoming message  
-                        if ((n = read(fd, buffer, 1024)) == 0) {   
+                        int n = read(fd, buffer, SIZE);
+                        if (n == 0) {
                             
-                            //Close the socket and mark as 0 in list for reuse  
-                            close(sd);   //// 
-                            fdClients[i] = 0;   
-                        }   
-                        */
-                        //Echo back the message that came in  
-                        /*else {   
-                            //set the string terminating NULL byte on the end  
-                            //of the data read  
-                            if (n == -1)  exit(1);
-                            buffer[n] = '\0';   
-                            send(fd , buffer , strlen(buffer) , 0 );   
-                        }   */
+                            getpeername(fd , (struct sockaddr*)&addr , (socklen_t*)&addrlen);
+                            printf("Host disconnected , ip %s , port %d \n" , inet_ntoa(addr.sin_addr) , ntohs(addr.sin_port));
+
+                            //Close the socket and mark as 0 in list for reuse
+                            close(fd);
+                            fdClients[i] = 0;
+                            /* error */ exit(1);
+                        }
+                        else if (n == -1) 
+                            /* error */ exit(1);
+                        else {
+                             /* get command code */
+                        strncpy(command, buffer, 3);
+
+                            if (strcmp(command, "LOG") == 0) {
+                                if (checkLoginInput(buffer))
+                                    strcpy(buffer, "RLO OK\n");
+                                else 
+                                    strcpy(buffer, "RLO NOK\n");
+
+                                /* error in sending */
+                                if (send(fd, buffer, strlen(buffer), 0) != strlen(buffer))
+                                    perror("RLO send");
+                        
+                            }
+                        }  
+
+                       
+
                     }   
                 } 
             }
         }
     }
-}      

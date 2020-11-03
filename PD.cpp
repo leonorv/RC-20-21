@@ -128,11 +128,6 @@ int main(int argc, char* argv[]){
 
                     n = sendto(udpClientSocket, msg, strlen(msg), 0, res_c->ai_addr, res_c->ai_addrlen);
 
-                    freeaddrinfo(res_c);
-                    freeaddrinfo(res_s);
-                    close(udpClientSocket);
-                    close(udpServerSocket);
-                    exit(1);
                 }
                 else {
                     /*====================================================
@@ -159,6 +154,22 @@ int main(int argc, char* argv[]){
 
                 if (strcmp(buffer, "RRG OK\n") == 0) {
                     printf("Registration successful\n");  
+                }
+                else if (strcmp(buffer, "RRG NOK\n") == 0) {
+                    printf("Registration unsuccessful\n");  
+                }
+                else if (strcmp(buffer, "RUN OK\n") == 0) {
+                    printf("Unregistration successful\n");  
+                    
+                    freeaddrinfo(res_c);
+                    freeaddrinfo(res_s);
+                    close(udpClientSocket);
+                    close(udpServerSocket);
+                    exit(1);
+                }
+                else if (strcmp(buffer, "RUN NOK\n") == 0) {
+                    printf("Unregistration unsuccessful\n");  
+                    
                 }
                 /* reset buffer */
                 memset(buffer, '\0', SIZE * sizeof(char));
