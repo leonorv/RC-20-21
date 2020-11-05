@@ -50,7 +50,7 @@ void processInput(int argc, char* const argv[]) {
 }
 
 int main(int argc, char* argv[]){
-    int udpServerSocket,udpClientSocket, afd = 0, errcode_c,errcode_s,fd;
+    int udpServerSocket, udpClientSocket, afd = 0, errcode_c,errcode_s,fd;
     fd_set readfds;
     int maxfd, retval;
     ssize_t n;
@@ -108,7 +108,7 @@ int main(int argc, char* argv[]){
         ==========================*/
         maxfd = max(udpClientSocket, udpServerSocket);
         retval = select(maxfd + 1, &readfds, NULL, NULL, NULL);
-        if (retval <= 0)/*error*/exit(1);
+        if (retval <= 0) /*error*/ exit(1);
         
         for (; retval; retval--) {
             if(FD_ISSET(afd, &readfds)){
@@ -126,7 +126,8 @@ int main(int argc, char* argv[]){
                     strcat(msg, password);
                     strcat(msg, "\n");
 
-                    n = sendto(udpClientSocket, msg, strlen(msg), 0, res_c->ai_addr, res_c->ai_addrlen);
+                    int n = sendto(udpClientSocket, msg, strlen(msg), 0, res_c->ai_addr, res_c->ai_addrlen);
+                    if (n == -1 ) perror("error on sendto");
 
                 }
                 else {
@@ -178,10 +179,14 @@ int main(int argc, char* argv[]){
                 /*====================================================
                 Receive messages from AS unprovoked
                 ====================================================*/
+                printf("received message from as\n");
+                fflush(stdout);
                 addrlen_s = sizeof(addr_s);
                 n = recvfrom(udpServerSocket, buffer, 128, 0, (struct sockaddr*) &addr_s, &addrlen_s);
-                if (n == -1)/*error*/exit(1);
+                if (n == -1)/*error*/perror("recv udpServerSocker");
                 buffer[n] = '\0';
+
+                printf("received from as: %s\n", buffer);
 
                 /*separate command*/
                 char *token = strtok(buffer, " ");

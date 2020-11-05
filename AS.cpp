@@ -64,10 +64,13 @@ void setupUDPClientSocket(char PDIP[SIZE], char PDport[SIZE]) {
     memset(&hints_uc, 0, sizeof hints_uc);
     hints_uc.ai_family = AF_INET; //IPv4
     hints_uc.ai_socktype = SOCK_DGRAM; //UDP socket
+
+    // printf("ip:%s, port:%s\n",PDIP, PDport);
+    
     errcode = getaddrinfo(PDIP, PDport, &hints_uc, &res_uc);
     memset(PDIP, '\0', SIZE * sizeof(char));
     memset(PDport, '\0', SIZE * sizeof(char));
-    if (errcode != 0) /*error*/ exit(1);
+    if (errcode != 0) /*error*/ perror("getaddrinfo in setupClientSocket");
 }
 
 void setupUDPServerSocket() {
@@ -226,17 +229,20 @@ int checkLoginInput(char buffer[SIZE]) {
     }
 }
 
-int checkRequestInput(char buffer[SIZE]) {
-    char filename[SIZE], uid[SIZE], rid[SIZE], fop[SIZE], dirName[SIZE];
+int treatRequestInput(char buffer[SIZE]) {
+    char filename[SIZE], fname[SIZE], uid[SIZE], rid[SIZE], fop[2], dirName[SIZE], toSend[SIZE];
 
-    sscanf(buffer, "REQ %[0-9] %[a-zA-Z] %c %s\n", uid, rid, fop, filename);
-
+    sscanf(buffer, "REQ %[0-9] %[0-9] %s %s\n", uid, rid, fop, fname);
+    
     strcpy(dirName, "users/");
     strcat(dirName, uid);
 
     int error = mkdir(dirName, 0777);
 
-    if (error != -1) /*error*/ perror("REQ - user does not exist");
+    if (error != -1) /*error*/ {
+        // perror("REQ - user does not exist");
+        return 0;
+    }
 
     strcpy(filename, dirName);
     strcat(filename, "/reg.txt");
@@ -248,13 +254,30 @@ int checkRequestInput(char buffer[SIZE]) {
     getline(inFile, inFilePort);
     inFile.close();
 
-
     strcpy(pdip, inFileIP.c_str());
     strcpy(pdport, inFilePort.c_str());
     setupUDPClientSocket(pdip, pdport);
+
+    strcpy(toSend, "VLC ");
+    strcat(toSend, uid);
+    strcat(toSend, " ");
+    strcat(toSend, to_string(rand() % 9000 + 1000).c_str());
+    strcat(toSend, " ");
+    strcat(toSend, fop);
+    if (fname) {
+        strcat(toSend, " ");
+        strcat(toSend, fname);
+    }
+    strcat(toSend, "\n");
+
+    printf("tosend to pd: %s\n", toSend);
+    printf("port: %s\nip: %s\n", pdport, pdip);
+
+    int n = sendto(udpClientSocket, toSend, strlen(toSend), 0, res_uc->ai_addr, res_uc->ai_addrlen);
+    if (n == -1)
+        perror("VLC send");
+
 }
-
-
 
 int main(int argc, char* argv[]) {
     if (gethostname(ASIP ,SIZE) == -1)
@@ -310,8 +333,7 @@ int main(int argc, char* argv[]) {
             if(FD_ISSET(udpServerSocket, &readfds)) {
                 addrlen = sizeof(addr);
                 n = recvfrom(udpServerSocket, buffer, 128, 0, (struct sockaddr*) &addr, &addrlen);
-
-                fflush(stdout);
+;
 
                 /* get command code */
                 strncpy(command, buffer, 3);
@@ -357,8 +379,8 @@ int main(int argc, char* argv[]) {
                         int n = read(fd, buffer, SIZE);
                         if (n == 0) {
                             
-                            getpeername(fd , (struct sockaddr*)&addr , (socklen_t*)&addrlen);
-                            printf("Host disconnected , ip %s , port %d \n" , inet_ntoa(addr.sin_addr) , ntohs(addr.sin_port));
+                            getpeername(fd, (struct sockaddr*)&addr, (socklen_t*)&addrlen);
+                            //printf("Host disconnected , ip %s , port %d \n" , inet_ntoa(addr.sin_addr) , ntohs(addr.sin_port));
 
                             //Close the socket and mark as 0 in list for reuse
                             close(fd);
@@ -380,24 +402,16 @@ int main(int argc, char* argv[]) {
                                 /* error in sending */
                                 if (send(fd, buffer, strlen(buffer), 0) != strlen(buffer))
                                     perror("RLO send");
-                        
                             }
-
                             else if (strcmp(command, "REQ") == 0) {
-                                if (checkRequestInput(buffer)) {
-                                    printf("checkou request\n");
-                                    fflush(stdout);
-                                    strcpy(buffer, "RRQ OK\n");
-
-                                    if (send(udpClientSocket, buffer, strlen(buffer), 0) != strlen(buffer)) 
-                                        perror("VLC send");
-                                }
-                                else 
-                                    strcpy(buffer, "RRQ NOK\n");
+                                treatRequestInput(buffer);
+                                
                             }
-                        }  
+                        }
                     }   
                 } 
             }
         }
     }
+
+    //kill -9 numero
