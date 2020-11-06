@@ -179,14 +179,10 @@ int main(int argc, char* argv[]){
                 /*====================================================
                 Receive messages from AS unprovoked
                 ====================================================*/
-                printf("received message from as\n");
-                fflush(stdout);
                 addrlen_s = sizeof(addr_s);
                 n = recvfrom(udpServerSocket, buffer, 128, 0, (struct sockaddr*) &addr_s, &addrlen_s);
-                if (n == -1)/*error*/perror("recv udpServerSocker");
+                if (n == -1)/*error*/perror("recv udpServerSocket");
                 buffer[n] = '\0';
-
-                printf("received from as: %s\n", buffer);
 
                 /*separate command*/
                 char *token = strtok(buffer, " ");
@@ -204,13 +200,14 @@ int main(int argc, char* argv[]){
                     strcpy(vc, token);
                     token = strtok(NULL, " ");
                     strcpy(fop, token);
-                    if (strcmp(fop, "L") != 0 && strcmp(fop, "X") != 0) {
+                    if (strcmp(fop, "L\n") != 0 || strcmp(fop, "X\n") != 0) {
                         token = strtok(NULL, " ");
                         strcpy(filename, token);
+                        strcat(filename, "\n");
                     } else {
                         filename[0] = '\0';
                     }
-                    //int a_as_int = (int)'a';
+                
                     if (strcmp(fop, "U") == 0) {
                         strcpy(op_name, "upload: ");
                     } 
@@ -220,27 +217,31 @@ int main(int argc, char* argv[]){
                     else if (strcmp(fop, "D") == 0) {
                         strcpy(op_name, "retrieve: ");
                     } 
-                    else if (strcmp(fop, "L\n") == 0) {
+                    else if (strcmp(fop, "L") == 0) {
                         strcpy(op_name, "list\n");
                     }  
-                    else if (strcmp(fop, "X\n") == 0) {
+                    else if (strcmp(fop, "X") == 0) {
                         strcpy(op_name, "remove\n");
                     }
-                    else {
-                        printf("Error!\n");
+                    else{
+                        printf("ERROR\n");
                     }
-                    
-                    /* Print confirmation code to terminal */
-                    printf("VC=%s, %s%s", vc, op_name, filename);
+
+                    if (strcmp(fop, "L") == 0 || strcmp(fop, "X") == 0) {
+                        printf("VC=%s, %s", vc, op_name);
+                    }
+                    else {
+                        printf("VC=%s, %s %s", vc, op_name, filename);
+                    }
 
                     /*copy confirmation message to buffer
                       to send to AS*/
                     strcpy(buffer, "RVC OK\n");
-                    n = strlen(buffer);
                 }
                 /*send confirmation message to AS*/
-                n = sendto(udpServerSocket, buffer, n, 0, (struct sockaddr*) &addr_s, addrlen_s);
+                n = sendto(udpClientSocket, buffer, n, 0, (struct sockaddr*) &addr_c, addrlen_c);
                 if (n == -1)/*error*/exit(1);   
+
                 memset(buffer, '\0', SIZE * sizeof(char));
             }
         }

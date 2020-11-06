@@ -155,8 +155,6 @@ int main(int argc, char* const argv[]) {
             if (n == -1)  exit(1);
             buffer[n] = '\0';
 
-            write(1, buffer, n);  
-
             char *token_2 = strtok(buffer, " ");
             strcpy(command, token_2);
 
