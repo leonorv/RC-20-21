@@ -111,10 +111,9 @@ int main(int argc, char* const argv[]) {
                 strcpy(uid, token);
             }
             else if (strcmp(command, "REQ") == 0) {
-                if (strcmp(uid,"") == 0) {
+                /*if (strcmp(uid,"") == 0) {
                     printf("NO UID\n");
-                }
-                else {
+                }*/
                     rID = rand() % 9000 + 1000;
 
                     int flag = 0;
@@ -143,7 +142,6 @@ int main(int argc, char* const argv[]) {
                         sprintf(ptr, "REQ %s %d %s", uid, rID, fop);
                     }
                 
-                }
             }
             else if (strcmp(command, "VAL") == 0) {
                 token = strtok(NULL, " ");
@@ -167,6 +165,21 @@ int main(int argc, char* const argv[]) {
 
             if (strcmp(command, "RLO")==0) {
                 printf("You are now logged in.\n"); 
+            }
+            if (strcmp(command, "RRQ")==0) {
+                //verification for ok/nok/errors
+                token = strtok(NULL, " ");
+                printf("token: %s\n", token);
+                if (strcmp(token, "EFOP"))
+                    printf("Operation not supported.\n");
+                else if (strcmp(token, "ELOG"))
+                    printf("User not logged in.\n");
+                else if (strcmp(token, "EPD"))
+                    printf("Unable to connect to personal device.\n");
+                else if (strcmp(token, "EUSER"))
+                    printf("Incorrect user.\n");
+                else 
+                    printf("Request accepted\n"); 
             }
             else if (strcmp(command, "RAU") == 0) {
                 token_2 = strtok(NULL, " ");

@@ -186,7 +186,7 @@ int main(int argc, char* argv[]){
                 n = recvfrom(udpServerSocket, buffer, SIZE, 0, (struct sockaddr*) &addr_s, &addrlen_s);
                 if (n == -1) /*error*/ perror("recv udpServerSocket");
 
-                printf("received from as: %s.\n", buffer);
+                printf("received from as: %s", buffer);
                 fflush(stdout);
 
                 buffer[n] = '\0';
@@ -205,7 +205,6 @@ int main(int argc, char* argv[]){
                     if (strcmp(fop, "L\n") != 0 || strcmp(fop, "X\n") != 0) {
                         token = strtok(NULL, " ");
                         strcpy(filename, token);
-                        strcat(filename, "\n");
                     } else {
                         filename[0] = '\0';
                     }
