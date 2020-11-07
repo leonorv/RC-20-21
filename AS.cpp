@@ -111,10 +111,11 @@ int checkRegisterInput(char buffer[SIZE]) {
     char filename[SIZE], password[SIZE], uid[SIZE], pdip[SIZE], pdport[SIZE], driName[SIZE];
 
     sscanf(buffer, "REG %[0-9] %[0-9a-zA-Z] %[0-9.] %[0-9]\n", uid, password, pdip, pdport);
-    if (uid == NULL || strlen(uid) != 5) return 0;
-    if (password == NULL || strlen(password) != 8) return 0;
-    if (pdip == NULL) return 0;
-    if (pdport == NULL || strlen(pdport) != 5) return 0;
+    if (strlen(uid) == 1 || strlen(uid) != 5) return 0;
+    if (strlen(password) == 1 || strlen(password) != 8) return 0;
+    if (strlen(pdip) == 1) return 0;
+    if (strlen(pdport) == 1 || strlen(pdport) != 5) return 0;
+
 
     strcpy(dirName, "users/");
     strcat(dirName, uid);
@@ -125,13 +126,21 @@ int checkRegisterInput(char buffer[SIZE]) {
 
     if (error == -1) { 
         /* If User has already been registered */
-        char passBuffer[9];
-        FILE *f = fopen(filename, "r");
-        fgets(passBuffer, strlen(passBuffer), f);
+
+        string inFilePass;
+        ifstream inFile;
+        inFile.open(filename);
+        getline(inFile, inFilePass);
         /* Check password */
-        if (strcmp(passBuffer, password) != 0) /*password is incorrect*/ return 0;
-        fclose(f);
-        memset(passBuffer, '\0', 9 * sizeof(char));
+        if (strcmp(inFilePass.c_str(), password) != 0) {
+            /*password is incorrect*/ 
+            return 0;
+        }
+        /* if user already exists, we will have to reset the pd info (pdport and pdip)*/
+        memset(filename, '\0', SIZE * sizeof(char));
+        strcpy(filename, dirName);
+        strcat(filename, "/reg.txt");
+        remove(filename);
 
     }
     else {
@@ -254,7 +263,7 @@ int treatRequestInput(char buffer[SIZE]) {
     AS verifica que user existe - EUSER
     AS nao consegue enviar mensagem para PD - EPD
     */
-   printf("buffer: %s, uid: %s, rid: %s, fop: %s, fname: %s\n", buffer, uid, rid, fop, fname);
+//    printf("buffer: %s, uid: %s, rid: %s, fop: %s, fname: %s\n", buffer, uid, rid, fop, fname);
    
     // if (uid == NULL || rid == NULL || fop == NULL || fname == NULL)
     //     return ERR;
@@ -265,14 +274,22 @@ int treatRequestInput(char buffer[SIZE]) {
     // if ((strcmp(fop, "R") == 0 || strcmp(fop, "X") == 0) && fname != NULL)
     //     return ERR;
 
+    // printf("len rid %lu\n", strlen(rid));
+
+    if (strlen(rid) == 1) {
+        /* if rid is empty, the user isn't logged in*/
+        return ELOG;
+    }
 
     strcpy(dirName, "users/");
     strcat(dirName, uid);
 
     int error = mkdir(dirName, 0777);
 
-    if (error != -1) /*error*/ {
-        perror("REQ - user does not exist");
+    if (error != -1)  {
+        // perror("REQ - user does not exist");
+        /* if there is no error in mkdir, the user directory does not exist*/
+        remove(dirName);
         return EUSER;
     }
 
@@ -280,6 +297,7 @@ int treatRequestInput(char buffer[SIZE]) {
     strcpy(logFilename, dirName);
     strcat(logFilename, "/login.txt");
     ifstream ifile(logFilename);
+    /* if thre is no log.txt, the user isn't logged in*/
     if (!ifile) return ELOG;
     memset(logFilename, '\0', SIZE * sizeof(char));
 

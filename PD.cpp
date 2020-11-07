@@ -61,7 +61,9 @@ int main(int argc, char* argv[]){
     struct addrinfo hints_c, hints_s, *res_c, *res_s;
     struct sockaddr_in addr_c, addr_s;
     char buffer[SIZE], msg[SIZE];
-    char command[4], uid[5], password[8], filename[50], vc[5], op_name[16], confirmation[8], fop[3];
+    char command[SIZE], uid[SIZE], password[SIZE], filename[SIZE], vc[SIZE], op_name[SIZE], fop[SIZE];
+    // bool registered = false;
+
 
     if (gethostname(ASIP, SIZE) == -1)
         fprintf(stderr, "error: %s\n", strerror(errno));
@@ -115,6 +117,7 @@ int main(int argc, char* argv[]){
         
         for (; retval; retval--) {
             if(FD_ISSET(afd, &readfds)){
+                memset(msg, '\0', strlen(msg) * sizeof(char));
                 fgets(msg, SIZE, stdin);
                 /* msg is input written in standard input*/
                 strtok(msg, "\n");
@@ -122,6 +125,7 @@ int main(int argc, char* argv[]){
                     /*====================================================
                     Free data structures and close socket connections
                     ====================================================*/
+                    // registered = false;
                     memset(msg, '\0', SIZE * sizeof(char));
                     strcpy(msg, "UNR ");
                     strcat(msg, uid);
@@ -139,13 +143,37 @@ int main(int argc, char* argv[]){
                     ====================================================*/
                     /* msg = "REG 99999 password" */
 
-                    sscanf(msg, "REG %s %s\n", uid, password);
+                    // char temp[SIZE];
+                    char temp[SIZE];
+                    strcpy(temp, msg);
+                    char *token = strtok(temp, " ");
 
+                    if (strcmp(token, "reg") != 0) {
+                        printf(".%s.", token);
+                        perror("invalid request");
+                        break;
+                    }
+
+                    // if (registered) {
+                    //     memset(temp, '\0', strlen(temp) * sizeof(char));
+                    //     strcpy(temp, "already registered as user ");
+                    //     strcat(temp, uid);
+                    //     perror(temp);
+                    //     break;
+                    // }
+
+                    memset(uid, '\0', strlen(uid) * sizeof(char));
+                    memset(password, '\0', strlen(password) * sizeof(char));
+                    sscanf(msg, "reg %s %s\n", uid, password);
+
+                    strcat(strcat(strcat(strcpy(msg, "REG "), uid), " "), password);
                     strcat(strcat(msg, " "), fixedReg);      
+                    printf("sendto: %s", msg);
                     n = sendto(udpClientSocket, msg, strlen(msg), 0, res_c->ai_addr, res_c->ai_addrlen);
+
                     if (n == -1)/*error*/exit(1);     
                 }
-                memset(msg, '\0', SIZE * sizeof(char));
+                
             }
             if (FD_ISSET(udpClientSocket, &readfds)) {
                 /*====================================================
@@ -175,6 +203,8 @@ int main(int argc, char* argv[]){
                     printf("Unregistration unsuccessful\n");  
                     
                 }
+                else 
+                    perror("udpclientsocket bad response from AS");
                 /* reset buffer */
                 memset(buffer, '\0', SIZE * sizeof(char));
             }
@@ -244,7 +274,12 @@ int main(int argc, char* argv[]){
                 n = sendto(udpServerSocket, buffer, strlen(buffer), 0, (struct sockaddr*) &addr_s, addrlen_s);
                 if (n == -1) /*error*/ exit(1);   
 
-                memset(buffer, '\0', SIZE * sizeof(char));
+                memset(command, '\0', strlen(command) * sizeof(char));
+                memset(vc, '\0', strlen(vc) * sizeof(char));
+                memset(op_name, '\0', strlen(op_name) * sizeof(char));
+                memset(fop, '\0', strlen(fop) * sizeof(char));
+                memset(filename, '\0', strlen(filename) * sizeof(char));
+                memset(buffer, '\0', strlen(buffer) * sizeof(char));
             }
         }
     }
