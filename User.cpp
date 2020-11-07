@@ -130,11 +130,7 @@ int main(int argc, char* const argv[]) {
 
                     sscanf(msg, "req %s %s\n", fop, filename);
 
-                    printf("len filename: %lu\n", strlen(filename));
-
                     sprintf(ptr, "REQ %s %d %s %s\n", uid, rID, fop, filename);
-
-                    printf("ptr: %s", ptr);
 
                     // if (strlen(filename))
                     // int flag = 0;
@@ -190,7 +186,6 @@ int main(int argc, char* const argv[]) {
 
             if (strcmp(command, "RLO") == 0) {
                 token = strtok(NULL, " ");
-                printf("token: %s", token);
                 if (strcmp(token, "OK\n") == 0) {
                     printf("You are now logged in.\n"); 
                     strcpy(uid, uidTemp);

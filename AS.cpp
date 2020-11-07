@@ -306,8 +306,6 @@ int treatRequestInput(char buffer[SIZE]) {
    if (strcmp(fop, "U") != 0 && strcmp(fop, "D") != 0 && strcmp(fop, "L") != 0 && strcmp(fop, "R") != 0 && strcmp(fop, "X") != 0)
         return EFOP;
 
-    
-
     strcpy(filename, dirName);
     strcat(filename, "/reg.txt");
     string inFileIP;
@@ -342,16 +340,28 @@ int treatRequestInput(char buffer[SIZE]) {
     }
     strcat(toSend, "\n");
 
-    printf("toSend: %s", toSend);
-    fflush(stdout);
-
     int n = sendto(udpClientSocket, toSend, strlen(toSend), 0, res_uc->ai_addr, res_uc->ai_addrlen);
     if (n == -1)
         perror("VLC send");
 
+    if (strcmp(fop, "U") == 0) {
+        strcpy(op_name, "upload");
+    } 
+    else if (strcmp(fop, "R") == 0) {
+        strcpy(op_name, "retrieve");
+    } 
+    else if (strcmp(fop, "D") == 0) {
+        strcpy(op_name, "delete");
+    } 
+    else if (strcmp(fop, "L") == 0) {
+        strcpy(op_name, "list");
+    }  
+    else if (strcmp(fop, "X") == 0) {
+        strcpy(op_name, "remove");
+    }
 
+    printf("User: %s req, UID=%s, file: %s, RID=%s, VC=%s\n", op_name, uid, fname, rid, vc);
     return 1;
-
 }
 
 int treatRVCInput(char buffer[SIZE]) { //as received rvc from pd and he's going to send ok/nok to user
@@ -419,7 +429,6 @@ int main(int argc, char* argv[]) {
                         PD -> RVC status
                 ============================*/
                 // printf("udpclientsocket\n");
-                fflush(stdout);
                 
                 addrlen_uc = sizeof(addr_uc);
                 n = recvfrom(udpClientSocket, buffer, SIZE, 0, (struct sockaddr*) &addr_uc, &addrlen_uc);
@@ -453,7 +462,6 @@ int main(int argc, char* argv[]) {
                         PD -> UNR UID pass
                 ===========================================*/
 
-                printf("udpserversocket\n");
                 addrlen_us = sizeof(addr_us);
                 n = recvfrom(udpServerSocket, buffer, SIZE, 0, (struct sockaddr*) &addr_us, &addrlen_us);
                 if (n == -1)/*error*/perror("recvfrom udpServerSocket");
@@ -471,6 +479,7 @@ int main(int argc, char* argv[]) {
                 }
                 else if (strcmp(command, "UNR") == 0) {
                     if (checkUnregisterInput(buffer)) {
+                        printf("run ok\n");
                         strcpy(buffer, "RUN OK\n");
                     }
                     else
@@ -489,7 +498,7 @@ int main(int argc, char* argv[]) {
                         USER -> REQ UID RID Fop [Fname]
                         USER -> AUT UID RID VC
                 ===========================================*/
-                printf("tcpserversocket\n");
+               
                 addrlen_ts = sizeof(addr_ts);
                 if ((newfd = accept(tcpServerSocket, (struct sockaddr*)&addr_ts, &addrlen_ts)) == -1) /*error*/ exit(1);
 
@@ -506,7 +515,7 @@ int main(int argc, char* argv[]) {
                 for (int i = 0; i < maxUsers; i++) {   
                     fd = fdClients[i];   
                     if (FD_ISSET(fd, &readfds)) {  
-                        printf("set user child socket\n"); 
+                        
                         int n = read(fd, buffer, SIZE);
                         if (n == 0) {
                             
@@ -536,11 +545,11 @@ int main(int argc, char* argv[]) {
                                     perror("RLO send");
                             }
                             else if (strcmp(command, "REQ") == 0) {
-                                printf("Treat request\n");
+                                
                                 int reqResult = treatRequestInput(buffer);
                                 //send error to user
 
-                                printf("fim do treat req inpt, reqesult: %d\n", reqResult);
+                               
                                 strcpy(buffer, "RRQ ");
                                 if (reqResult == ERR)
                                     strcat(buffer, "ERR\n");
@@ -552,9 +561,10 @@ int main(int argc, char* argv[]) {
                                     strcat(buffer, "EFOP\n");
                                 else if (reqResult == EPD)
                                     strcat(buffer, "EPD\n");
-                                else strcat(buffer, "OK\n");
+                                else {
+                                    strcat(buffer, "OK\n");
+                                }
                                 
-                                printf("buffer: %s", buffer);
                                 if (send(fd, buffer, strlen(buffer), 0) != strlen(buffer))
                                     perror("RRQ send"); 
                                 

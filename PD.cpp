@@ -133,6 +133,8 @@ int main(int argc, char* argv[]){
                     strcat(msg, password);
                     strcat(msg, "\n");
 
+                    printf("exit:%s", msg);
+
                     int n = sendto(udpClientSocket, msg, strlen(msg), 0, res_c->ai_addr, res_c->ai_addrlen);
                     if (n == -1 ) perror("error on sendto");
 
@@ -149,7 +151,6 @@ int main(int argc, char* argv[]){
                     char *token = strtok(temp, " ");
 
                     if (strcmp(token, "reg") != 0) {
-                        printf(".%s.", token);
                         perror("invalid request");
                         break;
                     }
@@ -168,7 +169,7 @@ int main(int argc, char* argv[]){
 
                     strcat(strcat(strcat(strcpy(msg, "REG "), uid), " "), password);
                     strcat(strcat(msg, " "), fixedReg);      
-                    printf("sendto: %s", msg);
+
                     n = sendto(udpClientSocket, msg, strlen(msg), 0, res_c->ai_addr, res_c->ai_addrlen);
 
                     if (n == -1)/*error*/exit(1);     
@@ -193,6 +194,7 @@ int main(int argc, char* argv[]){
                 else if (strcmp(buffer, "RUN OK\n") == 0) {
                     printf("Unregistration successful\n");  
                     
+                    printf("unr pd - run ok\n");
                     freeaddrinfo(res_c);
                     freeaddrinfo(res_s);
                     close(udpClientSocket);
@@ -215,9 +217,6 @@ int main(int argc, char* argv[]){
                 addrlen_s = sizeof(addr_s);
                 n = recvfrom(udpServerSocket, buffer, SIZE, 0, (struct sockaddr*) &addr_s, &addrlen_s);
                 if (n == -1) /*error*/ perror("recv udpServerSocket");
-
-                printf("received from as: %s", buffer);
-                fflush(stdout);
 
                 buffer[n] = '\0';
 
