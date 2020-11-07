@@ -66,22 +66,20 @@ void setupUDPClientSocket(char PDIP[SIZE], char PDport[SIZE]) {
     memset(&hints_uc, 0, sizeof hints_uc);
     hints_uc.ai_family = AF_INET; //IPv4
     hints_uc.ai_socktype = SOCK_DGRAM; //UDP socket
-
     errcode = getaddrinfo(PDIP, PDport, &hints_uc, &res_uc);
     memset(PDIP, '\0', SIZE * sizeof(char));
     memset(PDport, '\0', SIZE * sizeof(char));
     if (errcode != 0) /*error*/ perror("getaddrinfo in setupClientSocket");
-
     FD_SET(udpClientSocket, &readfds);
-    maxfd = max2(maxfd, udpClientSocket);
+    maxfd = max2(maxfd, udpClientSocket);   
 }
 
 void setupUDPServerSocket() {
-    udpServerSocket = socket(AF_INET, SOCK_DGRAM, 0);//UDP socket
-    if(udpServerSocket == -1)/*error*/exit(1);
+    udpServerSocket = socket(AF_INET, SOCK_DGRAM, 0); //UDP socket
+    if(udpServerSocket == -1) /*error*/exit(1);
     memset(&hints_us, 0, sizeof hints_us);
-    hints_us.ai_family = AF_INET;//IPv4
-    hints_us.ai_socktype = SOCK_DGRAM;//UDP socket
+    hints_us.ai_family = AF_INET; //IPv4
+    hints_us.ai_socktype = SOCK_DGRAM; //UDP socket
     hints_us.ai_flags = AI_PASSIVE;
     errcode = getaddrinfo(NULL, ASport, &hints_us, &res_us);
     if (errcode != 0)/*error*/exit(1);
@@ -285,27 +283,12 @@ int treatRequestInput(char buffer[SIZE]) {
     }
     strcat(toSend, "\n");
 
+    printf("toSend: %s", toSend);
+
     int n = sendto(udpClientSocket, toSend, strlen(toSend), 0, res_uc->ai_addr, res_uc->ai_addrlen);
+    //printf("updCS: %d, addrlen: %u\n", udpClientSocket, res_uc->ai_addrlen);
     if (n == -1)
         perror("VLC send");
-
-    if (strcmp(fop, "U") == 0) {
-        strcpy(op_name, "upload");
-    } 
-    else if (strcmp(fop, "R") == 0) {
-        strcpy(op_name, "retrieve");
-    } 
-    else if (strcmp(fop, "D") == 0) {
-        strcpy(op_name, "retrieve");
-    } 
-    else if (strcmp(fop, "L") == 0) {
-        strcpy(op_name, "list");
-    }  
-    else if (strcmp(fop, "X") == 0) {
-        strcpy(op_name, "remove");
-    }
-
-    printf("User: %s req, UID=%s, file: %s, RID=%s, VC=%s\n", op_name, uid, fname, rid, vc);
 
     return 1;
 
@@ -341,7 +324,7 @@ int main(int argc, char* argv[]) {
         FD_SET(udpServerSocket, &readfds);
         FD_SET(tcpServerSocket, &readfds);
         //--------------------------------------------------------------------------------------------------
-        //FD_SET(udpClientSocket, &readfds);
+        FD_SET(udpClientSocket, &readfds);
         maxfd = tcpServerSocket;
 
         /*==========================
@@ -364,15 +347,19 @@ int main(int argc, char* argv[]) {
         Pick the active file descriptor(s)
         ==========================*/
         maxfd = max2(udpServerSocket, maxfd);
-        //maxfd = max(udpServerSocket, tcpServerSocket, udpClientSocket);
+        maxfd = max2(maxfd, udpClientSocket);
         retval = select(maxfd + 1, &readfds, NULL, NULL, NULL);
         if (retval <= 0)/*error*/exit(1);
         
         for (; retval; retval--) {
             //-------------------------------------------------------------------------------------
             if(FD_ISSET(udpClientSocket, &readfds)) {
+                /*============================
+                        PD -> RVC status
+                ============================*/
 
                 printf("udpclientsocket\n");
+                fflush(stdout);
                 
                 addrlen_uc = sizeof(addr_uc);
                 n = recvfrom(udpClientSocket, buffer, SIZE, 0, (struct sockaddr*) &addr_uc, &addrlen_uc);
@@ -382,24 +369,30 @@ int main(int argc, char* argv[]) {
                 strncpy(command, buffer, 3);
 
                 if (strcmp(command, "RVC") == 0) {
-                    printf("RVC-test\n");
+                    // printf("RVC-test\n");
                     if (checkVLCInput(buffer)) {
                         strcpy(buffer, "RRQ OK\n");
                     }
                     else
-                        strcpy(buffer, "EPD\n");
+                        strcpy(buffer, "EPD\n"); ////// erros!
                 }
                 
-                n = sendto(udpClientSocket, buffer, n, 0, (struct sockaddr*) &addr_uc, addrlen_uc);
+                int n = sendto(udpClientSocket, buffer, strlen(buffer), 0, res_uc->ai_addr, res_uc->ai_addrlen);
                 if (n == -1)/*error*/exit(1); 
                 memset(command, '\0', SIZE * sizeof(char));
                 memset(buffer, '\0', SIZE * sizeof(char));
             }
             //-------------------------------------------------------------------------------------
             else if(FD_ISSET(udpServerSocket, &readfds)) {
+                /*===========================================
+                        PD -> REG UID pass PDIP PDport
+                        PD -> UNR UID pass
+                ===========================================*/
+
                 printf("udpserversocket\n");
                 addrlen_us = sizeof(addr_us);
                 n = recvfrom(udpServerSocket, buffer, SIZE, 0, (struct sockaddr*) &addr_us, &addrlen_us);
+                if (n == -1)/*error*/perror("recvfrom udpServerSocket");
                 buffer[n] = '\0';
 
                 /* get command code */
@@ -419,22 +412,19 @@ int main(int argc, char* argv[]) {
                     else
                         strcpy(buffer, "RUN NOK\n");
                 }
-                if (strcmp(command, "RVC") == 0) {
-                    printf("RVC-test\n");
-                    if (checkVLCInput(buffer)) {
-                        strcpy(buffer, "RRQ OK\n");
-                    }
-                    else
-                        strcpy(buffer, "EPD\n");
-                }
                 
-                /*sends ok or not ok to pd*/
+                /* sends ok or not ok to pd */
                 n = sendto(udpServerSocket, buffer, n, 0, (struct sockaddr*) &addr_us, addrlen_us);
                 if (n == -1)/*error*/exit(1); 
                 memset(command, '\0', SIZE * sizeof(char));
                 memset(buffer, '\0', SIZE * sizeof(char));
             }
             else if(FD_ISSET(tcpServerSocket, &readfds)) {
+                /*===========================================
+                        USER -> LOG UID pass
+                        USER -> REQ UID RID Fop [Fname]
+                        USER -> AUT UID RID VC
+                ===========================================*/
                 printf("tcpserversocket\n");
                 addrlen_ts = sizeof(addr_ts);
                 if ((newfd = accept(tcpServerSocket, (struct sockaddr*)&addr_ts, &addrlen_ts)) == -1) /*error*/ exit(1);
@@ -468,7 +458,7 @@ int main(int argc, char* argv[]) {
                             /* error */ exit(1);
                         else {
                              /* get command code */
-                        strncpy(command, buffer, 3);
+                            strncpy(command, buffer, 3);
 
                             if (strcmp(command, "LOG") == 0) {
                                 if (checkLoginInput(buffer)) {

@@ -28,17 +28,20 @@ void processInput(int argc, char* const argv[]) {
     strcpy(PDIP, argv[1]);
     for (int i = 2; i < argc - 1; i++) {
         if (strcmp(argv[i], "-d") == 0) {
-            if (strlen(argv[i + 1]) > SIZE) exit(1);
+            if (strlen(argv[i + 1]) > SIZE) perror("incorrect PDport");
+            memset(PDport, '\0', SIZE * sizeof(char));
             strcpy(PDport, argv[i + 1]);
             continue;
         }
         else if (strcmp(argv[i], "-n") == 0) {
-            if (strlen(argv[i + 1]) > SIZE) exit(1);
+            if (strlen(argv[i + 1]) > SIZE) perror("incorrect ASIP");
+            memset(ASIP, '\0', SIZE * sizeof(char));
             strcpy(ASIP, argv[i + 1]);
             continue;
         }
         else if (strcmp(argv[i], "-p") == 0) {
-            if (strlen(argv[i + 1]) > SIZE) exit(1);
+            if (strlen(argv[i + 1]) > SIZE) perror("incorrect ASport");
+            memset(ASport, '\0', SIZE * sizeof(char));
             strcpy(ASport, argv[i + 1]);
             continue;
         }
@@ -60,8 +63,13 @@ int main(int argc, char* argv[]){
     char buffer[SIZE], msg[SIZE];
     char command[4], uid[5], password[8], filename[50], vc[5], op_name[16], confirmation[8], fop[3];
 
-    if (gethostname(ASIP ,SIZE) == -1)
-        fprintf(stderr,"error: %s\n",strerror(errno));
+    if (gethostname(ASIP, SIZE) == -1)
+        fprintf(stderr, "error: %s\n", strerror(errno));
+    
+    /*==========================
+        process standard input
+    ==========================*/
+    processInput(argc, argv);
 
     /*==========================
     Setting up UDP Client Socket
@@ -91,11 +99,6 @@ int main(int argc, char* argv[]){
     if (errcode_s != 0)/*error*/exit(1);
 
     if (bind(udpServerSocket, res_s->ai_addr, res_s->ai_addrlen) < 0) exit(1);
-
-    /*==========================
-        process standard input
-    ==========================*/
-    processInput(argc, argv);
     
     while (1) {
         FD_ZERO(&readfds);
@@ -180,19 +183,18 @@ int main(int argc, char* argv[]){
                 Receive messages from AS unprovoked
                 ====================================================*/
                 addrlen_s = sizeof(addr_s);
-                n = recvfrom(udpServerSocket, buffer, 128, 0, (struct sockaddr*) &addr_s, &addrlen_s);
-                if (n == -1)/*error*/perror("recv udpServerSocket");
+                n = recvfrom(udpServerSocket, buffer, SIZE, 0, (struct sockaddr*) &addr_s, &addrlen_s);
+                if (n == -1) /*error*/ perror("recv udpServerSocket");
+
+                printf("received from as: %s.\n", buffer);
+                fflush(stdout);
+
                 buffer[n] = '\0';
 
                 /*separate command*/
                 char *token = strtok(buffer, " ");
                 strcpy(command, token);
 
-                /*process VLCs*/
-                /*VLC UID VC FOP FILENAME\n
-                  or
-                  VLC UID VC FOP\n
-                */
                 if (strcmp(command, "VLC") == 0) {
                     token = strtok(NULL, " ");
                     strcpy(uid, token);
@@ -209,13 +211,13 @@ int main(int argc, char* argv[]){
                     }
                 
                     if (strcmp(fop, "U") == 0) {
-                        strcpy(op_name, "upload: ");
+                        strcpy(op_name, "upload:");
                     } 
                     else if (strcmp(fop, "R") == 0) {
-                        strcpy(op_name, "retrieve: ");
+                        strcpy(op_name, "retrieve:");
                     } 
                     else if (strcmp(fop, "D") == 0) {
-                        strcpy(op_name, "retrieve: ");
+                        strcpy(op_name, "retrieve:");
                     } 
                     else if (strcmp(fop, "L") == 0) {
                         strcpy(op_name, "list\n");
@@ -238,9 +240,10 @@ int main(int argc, char* argv[]){
                       to send to AS*/
                     strcpy(buffer, "RVC OK\n");
                 }
+
                 /*send confirmation message to AS*/
-                n = sendto(udpClientSocket, buffer, n, 0, (struct sockaddr*) &addr_c, addrlen_c);
-                if (n == -1)/*error*/exit(1);   
+                n = sendto(udpServerSocket, buffer, strlen(buffer), 0, (struct sockaddr*) &addr_s, addrlen_s);
+                if (n == -1) /*error*/ exit(1);   
 
                 memset(buffer, '\0', SIZE * sizeof(char));
             }

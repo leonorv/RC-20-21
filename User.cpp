@@ -17,7 +17,7 @@ using namespace std;
 
 extern int errno;
 
-char ASIP[SIZE], ASport[SIZE] = "58030", FSIP[SIZE], FSport[SIZE] = "59030";
+char ASIP[SIZE], ASport[SIZE] = "58030", FSIP[SIZE], FSport[SIZE] = "59011";
 
 void processInput(int argc, char* const argv[]) {
     if (argc%2 != 1) {
@@ -26,18 +26,22 @@ void processInput(int argc, char* const argv[]) {
     }
     for (int i = 1; i < argc - 1; i++) {
         if (strcmp(argv[i], "-p") == 0) {
+            memset(ASport, '\0', SIZE * sizeof(char));
             strcpy(ASport, argv[i + 1]);
             continue;
         }
         else if (strcmp(argv[i], "-n") == 0) {
+            memset(ASIP, '\0', SIZE * sizeof(char));
             strcpy(ASIP, argv[i + 1]);
             continue;
         }
         else if (strcmp(argv[i], "-m") == 0) {
+            memset(FSIP, '\0', SIZE * sizeof(char));
             strcpy(FSIP, argv[i + 1]);
             continue;
         }
         else if (strcmp(argv[i], "-q") == 0) {
+            memset(FSport, '\0', SIZE * sizeof(char));
             strcpy(FSport, argv[i + 1]);
             continue;
         }
@@ -57,6 +61,11 @@ int main(int argc, char* const argv[]) {
 
     if (gethostname(ASIP ,SIZE) == -1)
         fprintf(stderr,"error: %s\n",strerror(errno));
+        
+    /*==========================
+        process standard input
+    ==========================*/
+    processInput(argc, argv);
   
     /*==========================
         Setting up TCP Socket
@@ -74,10 +83,6 @@ int main(int argc, char* const argv[]) {
     n = connect(tcpSocket, res->ai_addr, res->ai_addrlen);
         if (n == -1)/*error*/{exit(1);} 
 
-    /*==========================
-        process standard input
-    ==========================*/
-    processInput(argc, argv);
 
     while (1) {
         fgets(msg, SIZE, stdin);
@@ -145,6 +150,8 @@ int main(int argc, char* const argv[]) {
                 vc = atoi(token);
                 sprintf(ptr, "AUT %s %d %d\n", uid, rID, vc);
             }
+            /* continue if incorrect command */
+            else continue;
             nbytes = strlen(ptr);
             nleft = nbytes;
 
