@@ -20,7 +20,6 @@ using namespace std;
 
 #define max2(A,B)((A)>=(B)?(A):(B))
 #define max(A,B,C)(A < B ? A : B) < C ? (A < B ? A : B) : C;
-//#define IP "tejo.tecnico.ulisboa.pt"
 #define SIZE 128
 
 #define ERR -1
@@ -105,8 +104,6 @@ void setupTCPServerSocket() {
     if (bind(tcpServerSocket, res_ts->ai_addr, res_ts->ai_addrlen) < 0) exit(1);
 }
 
-
-
 int checkRegisterInput(char buffer[SIZE]) {    
     char filename[SIZE], password[SIZE], uid[SIZE], pdip[SIZE], pdport[SIZE], driName[SIZE];
 
@@ -126,7 +123,6 @@ int checkRegisterInput(char buffer[SIZE]) {
 
     if (error == -1) { 
         /* If User has already been registered */
-
         string inFilePass;
         ifstream inFile;
         inFile.open(filename);
@@ -301,7 +297,6 @@ int treatRequestInput(char buffer[SIZE]) {
     if (!ifile) return ELOG;
     memset(logFilename, '\0', SIZE * sizeof(char));
 
-
    //CHECK FOP  L, R, U, D or X
    if (strcmp(fop, "U") != 0 && strcmp(fop, "D") != 0 && strcmp(fop, "L") != 0 && strcmp(fop, "R") != 0 && strcmp(fop, "X") != 0)
         return EFOP;
@@ -369,6 +364,15 @@ int treatRVCInput(char buffer[SIZE]) { //as received rvc from pd and he's going 
     return 1;
 }
 
+int checkAuthenticationInput(char buffer[SIZE]) {
+    char uid[SIZE], rid[SIZE], vc[SIZE];
+    int tid;
+
+    sscanf(buffer, "AUT %[0-9] %[0-9] %[0-9]\n", uid, rid, vc);
+
+    return tid;
+}
+
 int main(int argc, char* argv[]) {
     if (gethostname(ASIP ,SIZE) == -1)
         fprintf(stderr,"error: %s\n", strerror(errno));
@@ -428,13 +432,9 @@ int main(int argc, char* argv[]) {
                 /*============================
                         PD -> RVC status
                 ============================*/
-                // printf("udpclientsocket\n");
-                
                 addrlen_uc = sizeof(addr_uc);
                 n = recvfrom(udpClientSocket, buffer, SIZE, 0, (struct sockaddr*) &addr_uc, &addrlen_uc);
                 buffer[n] = '\0';
-
-                // printf("received from pd: %s\n", buffer);
 
                 /* get command code */
                 strncpy(command, buffer, 3);
@@ -448,20 +448,16 @@ int main(int argc, char* argv[]) {
                         strcpy(buffer, "RRQ NOK\n"); ////// erros!
                     }
                 }
-
-                
                 // int n = sendto(udpClientSocket, buffer, strlen(buffer), 0, res_uc->ai_addr, res_uc->ai_addrlen);
                 // if (n == -1)/*error*/exit(1); 
                 memset(command, '\0', SIZE * sizeof(char));
                 memset(buffer, '\0', SIZE * sizeof(char));
             }
-            //-------------------------------------------------------------------------------------
             else if(FD_ISSET(udpServerSocket, &readfds)) {
                 /*===========================================
                         PD -> REG UID pass PDIP PDport
                         PD -> UNR UID pass
                 ===========================================*/
-
                 addrlen_us = sizeof(addr_us);
                 n = recvfrom(udpServerSocket, buffer, SIZE, 0, (struct sockaddr*) &addr_us, &addrlen_us);
                 if (n == -1)/*error*/perror("recvfrom udpServerSocket");
@@ -498,7 +494,6 @@ int main(int argc, char* argv[]) {
                         USER -> REQ UID RID Fop [Fname]
                         USER -> AUT UID RID VC
                 ===========================================*/
-               
                 addrlen_ts = sizeof(addr_ts);
                 if ((newfd = accept(tcpServerSocket, (struct sockaddr*)&addr_ts, &addrlen_ts)) == -1) /*error*/ exit(1);
 
@@ -511,7 +506,6 @@ int main(int argc, char* argv[]) {
                     }   
                 } 
             }
-
                 for (int i = 0; i < maxUsers; i++) {   
                     fd = fdClients[i];   
                     if (FD_ISSET(fd, &readfds)) {  
@@ -520,7 +514,6 @@ int main(int argc, char* argv[]) {
                         if (n == 0) {
                             
                             getpeername(fd, (struct sockaddr*)&addr, (socklen_t*)&addrlen);
-                            //printf("Host disconnected , ip %s , port %d \n" , inet_ntoa(addr.sin_addr) , ntohs(addr.sin_port));
 
                             //Close the socket and mark as 0 in list for reuse
                             close(fd);
@@ -548,8 +541,6 @@ int main(int argc, char* argv[]) {
                                 
                                 int reqResult = treatRequestInput(buffer);
                                 //send error to user
-
-                               
                                 strcpy(buffer, "RRQ ");
                                 if (reqResult == ERR)
                                     strcat(buffer, "ERR\n");
@@ -568,6 +559,18 @@ int main(int argc, char* argv[]) {
                                 if (send(fd, buffer, strlen(buffer), 0) != strlen(buffer))
                                     perror("RRQ send"); 
                                 
+                            }
+                            else if (strcmp(command, "AUT") == 0) {
+                                string tid;
+                                if (checkAuthenticationInput(buffer)) {
+                                    tid = checkAuthenticationInput(buffer);
+                                    strcpy(buffer, "RAU %d\n", tid);
+                                }
+                                else 
+                                    strcpy(buffer, "RAU 0\n");
+                                /* error in sending */
+                                if (send(fd, buffer, strlen(buffer), 0) != strlen(buffer))
+                                    perror("RLO send");
                             }
                         }
                     }   

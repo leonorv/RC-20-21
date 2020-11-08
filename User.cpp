@@ -49,11 +49,13 @@ void processInput(int argc, char* const argv[]) {
 }
 
 int main(int argc, char* const argv[]) {
-    int tcpSocket, errcode, rID, vc, tid;
+    int tcpSocket_AS, tcpSocket_FS, errcode, rID, vc, tid, afd = 0;
+    fd_set readfds;
+    int maxfd, retval;
     ssize_t n, nbytes, nleft;
-    socklen_t addrlen;
-    struct addrinfo hints, *res;
-    struct sockaddr_in addr;
+    socklen_t addrlen_AS, addrlen_FS;
+    struct addrinfo hints_AS, hints_FS, *res_AS, *res_FS;
+    struct sockaddr_in addr_AS, addr_FS;
     char *ptr, buffer[SIZE], msg[SIZE], command[SIZE], fop[SIZE], filename[SIZE], uid[SIZE], uidTemp[SIZE];
 
     if (gethostname(FSIP ,SIZE) == -1)
@@ -70,155 +72,210 @@ int main(int argc, char* const argv[]) {
     /*==========================
         Setting up TCP Socket
     ==========================*/
-    tcpSocket = socket(AF_INET, SOCK_STREAM, 0);//TCP socket
-    if (tcpSocket == -1)/*error*/exit(1);
+    tcpSocket_AS = socket(AF_INET, SOCK_STREAM, 0);//TCP socket
+    if (tcpSocket_AS == -1)/*error*/exit(1);
    
-    memset(&hints, 0, sizeof(hints));
-    hints.ai_family = AF_INET;//IPv4
-    hints.ai_socktype = SOCK_STREAM;//TCP socket
+    memset(&hints_AS, 0, sizeof(hints_AS));
+    hints_AS.ai_family = AF_INET;//IPv4
+    hints_AS.ai_socktype = SOCK_STREAM;//TCP socket
 
-    errcode = getaddrinfo(ASIP, ASport, &hints, &res);  
+    errcode = getaddrinfo(ASIP, ASport, &hints_AS, &res_AS);  
     if (errcode != 0)/*error*/exit(1);
 
-    n = connect(tcpSocket, res->ai_addr, res->ai_addrlen);
+    n = connect(tcpSocket_AS, res_AS->ai_addr, res_AS->ai_addrlen);
         if (n == -1)/*error*/{ exit(1); } 
 
+    tcpSocket_FS = socket(AF_INET, SOCK_STREAM, 0);//TCP socket
+    if (tcpSocket_FS == -1)/*error*/exit(1);
+   
+    memset(&hints_FS, 0, sizeof(hints_FS));
+    hints_FS.ai_family = AF_INET;//IPv4
+    hints_FS.ai_socktype = SOCK_STREAM;//TCP socket
+
+    errcode = getaddrinfo(FSIP, FSport, &hints_FS, &res_FS);  
+    if (errcode != 0)/*error*/exit(1);
+
+    n = connect(tcpSocket_FS, res_FS->ai_addr, res_FS->ai_addrlen);
+        if (n == -1)/*error*/{ exit(1); } 
 
     while (1) {
-        fgets(msg, SIZE, stdin);
-        ptr = (char*) malloc(strlen(msg) + 1);
-        strcpy(ptr, msg);
-        strcat(ptr, "\0");
+        FD_ZERO(&readfds);
+        FD_SET(afd, &readfds);
+        FD_SET(tcpSocket_AS, &readfds);
+        FD_SET(tcpSocket_FS, &readfds);
 
-        if (strcmp(msg, "exit\n") == 0) {
-            /*====================================================
-            Free data structures and close socket connections
-            ====================================================*/
-            freeaddrinfo(res);
-            close(tcpSocket);
-            exit(1);
-        } 
+        /*==========================
+        Pick the active file descriptor(s)
+        ==========================*/
+        maxfd = max(tcpSocket_AS, tcpSocket_FS);
+        retval = select(maxfd + 1, &readfds, NULL, NULL, NULL);
+        if (retval <= 0) /*error*/ exit(1);
 
-        else {
-            /*====================================================
-            Send message from stdin to the server
-            ====================================================*/
-            char temp[SIZE];
-            strcpy(temp, msg);
-            char *token = strtok(temp, " ");
-            strcpy(command, token);
+        for (; retval; retval--) {
+            if(FD_ISSET(afd, &readfds)){
 
-            if (strcmp(command, "login") == 0) {
-                token = strtok(NULL, " ");
-                strcpy(uidTemp, token);
+                fgets(msg, SIZE, stdin);
+                ptr = (char*) malloc(strlen(msg) + 1);
+                strcpy(ptr, msg);
+                strcat(ptr, "\0");
 
-                token = strtok(NULL, " "); /* token has password */
-                // strcpy(password, token);
-                sprintf(ptr, "LOG %s %s", uidTemp, token);
-               
-            }
-            else if (strcmp(command, "req") == 0) {
-                /*if (strcmp(uid,"") == 0) {
-                    printf("NO UID\n");
-                }*/
-                    // char fop[SIZE], filename[SIZE], uid[SIZE];
+                if (strcmp(msg, "exit\n") == 0) {
+                    /*====================================================
+                    Free data structures and close socket connections
+                    ====================================================*/
+                    freeaddrinfo(res_AS);
+                    freeaddrinfo(res_FS);
+                    close(tcpSocket_AS);
+                    close(tcpSocket_FS);
+                    exit(1);
+                } 
+                else {
+                    /*====================================================
+                    Send message from stdin to the server
+                    ====================================================*/
+                    char temp[SIZE];
+                    strcpy(temp, msg);
+                    char *token = strtok(temp, " ");
+                    strcpy(command, token);
 
-                    memset(fop, '\0', strlen(fop) * sizeof(char));
-                    memset(filename, '\0', strlen(filename) * sizeof(char));
-                    // memset(uid, '\0', strlen(uid) * sizeof(char));
-                    rID = rand() % 9000 + 1000;
+                    if(strcmp(command, "login") == 0 || strcmp(command, "req") == 0 || strcmp(command, "val") == 0) {
+                        if (strcmp(command, "login") == 0) {
+                            token = strtok(NULL, " ");
+                            strcpy(uidTemp, token);
 
-                    sscanf(msg, "req %s %s\n", fop, filename);
+                            token = strtok(NULL, " "); /* token has password */
+                            // strcpy(password, token);
+                            sprintf(ptr, "LOG %s %s", uidTemp, token);
 
-                    sprintf(ptr, "REQ %s %d %s %s\n", uid, rID, fop, filename);
+                        }
+                        else if (strcmp(command, "req") == 0) {
 
-                    // if (strlen(filename))
-                    // int flag = 0;
-                    // while ( token != " " ) {
-                    //     token = strtok(NULL, " ");
-                    //     if (flag == 0) {
-                    //         strcpy(fop, token);
-                    //         flag = 1;
-                    //     }
-                    //     else if (flag == 1) {
-                    //         if (token != NULL) {
-                    //             strcpy(filename, token);
-                    //             break;
-                    //         }
-                    //         else {
-                    //             flag = 2;
-                    //             break;
-                    //         }
-                    //     }
-                    // } //////////// mudar esta parte das flags
-                    // if (flag == 1) {
-                    //     sprintf(ptr, "%s %s %d %s %s", command, uid, rID, fop, filename);
-                    // }
-                    // else if (flag == 2) {
-                    //     //strcpy(command, "REQ");
-                    //     sprintf(ptr, "REQ %s %d %s", uid, rID, fop);
-                    // }
-                
-            }
-            else if (strcmp(command, "val") == 0) {
-                token = strtok(NULL, " ");
-                vc = atoi(token);
-                sprintf(ptr, "AUT %s %d %d\n", uid, rID, vc);
-                printf("ptr: %s", ptr);
-            }
-            else {
-            /* continue if incorrect command */
-                perror("invalid request");
-                continue;
-            }
-            nbytes = strlen(ptr);
-            nleft = nbytes;
+                            memset(fop, '\0', strlen(fop) * sizeof(char));
+                            memset(filename, '\0', strlen(filename) * sizeof(char));
+                            // memset(uid, '\0', strlen(uid) * sizeof(char));
+                            rID = rand() % 9000 + 1000;
+                            sscanf(msg, "req %s %s\n", fop, filename);
+                            sprintf(ptr, "REQ %s %d %s %s\n", uid, rID, fop, filename);
 
-            n = write(tcpSocket, ptr, nleft);
-            if (n <= 0) exit(1);
+                        }
+                        else if (strcmp(command, "val") == 0) {
+                            token = strtok(NULL, " ");
+                            vc = atoi(token);
+                            sprintf(ptr, "AUT %s %d %d\n", uid, rID, vc);
+                        }
+                        nbytes = strlen(ptr);
+                        nleft = nbytes;
 
-            n = read(tcpSocket, buffer, SIZE);
-            if (n == -1)  exit(1);
-            buffer[n] = '\0';
+                        n = write(tcpSocket_AS, ptr, nleft);
+                        if (n <= 0) exit(1);
+                    }
+                    else if(strcmp(command, "upload") == 0 || strcmp(command, "retrieve") == 0 || strcmp(command, "delete") == 0 || strcmp(command, "remove") == 0 || strcmp(command, "list") == 0) {
+                        if (strcmp(command, "upload") == 0) {
+                        
+                        }
+                        else if (strcmp(command, "retrieve") == 0) {
+                        
+                        }
+                        else if (strcmp(command, "delete") == 0) {
+                        
+                        }
+                        else if (strcmp(command, "remove") == 0) {
+                        
+                        }
+                        else if (strcmp(command, "list") == 0) {
+                        
+                        }
+                        nbytes = strlen(ptr);
+                        nleft = nbytes;
 
-            token = strtok(buffer, " ");
-            strcpy(command, token);
-
-            if (strcmp(command, "RLO") == 0) {
-                token = strtok(NULL, " ");
-                if (strcmp(token, "OK\n") == 0) {
-                    printf("You are now logged in.\n"); 
-                    strcpy(uid, uidTemp);
-                    memset(uidTemp, '\0', strlen(uidTemp) * sizeof(char));
-                }
-                else if (strcmp(token, "NOK\n") == 0)
-                    printf("Failed to log in. Incorrect user ID or password.\n"); 
-                else
-                    perror("RLO incorrect status");
-            }
-            if (strcmp(command, "RRQ") == 0) {
-                //verification for ok/nok/errors
-                token = strtok(NULL, " ");
-                if (strcmp(token, "EFOP\n") == 0)
-                    printf("Operation not supported.\n");
-                else if (strcmp(token, "ELOG\n") == 0)
-                    printf("User not logged in.\n");
-                else if (strcmp(token, "EPD\n") == 0)
-                    printf("Unable to connect to personal device.\n");
-                else if (strcmp(token, "EUSER\n") == 0)
-                    printf("Incorrect user.\n");
-                else 
-                    printf("Request accepted\n"); 
-            }
-            else if (strcmp(command, "RAU") == 0) {
-                token = strtok(NULL, " ");
-                tid = atoi(token);
-
-                printf("Authenticated! (TID=%d)\n", tid); 
+                        n = write(tcpSocket_FS, ptr, nleft);
+                        if (n <= 0) exit(1);
+                    }
+                    else {
+                        /* continue if incorrect command */
+                        perror("invalid request");
+                        continue;
+                    }
                 }
             }
+            else if(FD_ISSET(tcpSocket_AS, &readfds)) {
 
-            memset(buffer, '\0', SIZE * sizeof(char));
-            free(ptr);
+                char *token;
+
+                n = read(tcpSocket_AS, buffer, SIZE);
+                if (n == -1)  exit(1);
+                buffer[n] = '\0';
+
+                token = strtok(buffer, " ");
+                strcpy(command, token);
+
+                if (strcmp(command, "RLO") == 0) {
+                    token = strtok(NULL, " ");
+                    if (strcmp(token, "OK\n") == 0) {
+                        printf("You are now logged in.\n"); 
+                        strcpy(uid, uidTemp);
+                        memset(uidTemp, '\0', strlen(uidTemp) * sizeof(char));
+                    }
+                    else if (strcmp(token, "NOK\n") == 0)
+                        printf("Failed to log in. Incorrect user ID or password.\n"); 
+                    else
+                        perror("RLO incorrect status");
+                }
+                else if (strcmp(command, "RRQ") == 0) {
+                    //verification for ok/nok/errors
+                    token = strtok(NULL, " ");
+                    if (strcmp(token, "EFOP\n") == 0)
+                        printf("Operation not supported.\n");
+                    else if (strcmp(token, "ELOG\n") == 0)
+                        printf("User not logged in.\n");
+                    else if (strcmp(token, "EPD\n") == 0)
+                        printf("Unable to connect to personal device.\n");
+                    else if (strcmp(token, "EUSER\n") == 0)
+                        printf("Incorrect user.\n");
+                    else 
+                        printf("Request accepted\n"); 
+                }
+                else if (strcmp(command, "RAU") == 0) {
+                    token = strtok(NULL, " ");
+                    tid = atoi(token);
+                    if(tid == 0) {
+                        printf("Authentication failed! (TID=%d)\n", tid); 
+                    }
+                    else if (tid != 0) {
+                        printf("Authenticated! (TID=%d)\n", tid); 
+                    }
+                }
+                memset(buffer, '\0', SIZE * sizeof(char));
+                free(ptr);
+            }
+            else if(FD_ISSET(tcpSocket_FS, &readfds)) {
+
+                char *token;
+
+                n = read(tcpSocket_AS, buffer, SIZE);
+                if (n == -1)  exit(1);
+                buffer[n] = '\0';
+
+                token = strtok(buffer, " ");
+                strcpy(command, token);
+
+                if (strcmp(command, "RLS") == 0) {
+                 
+                }
+                else if (strcmp(command, "RRT") == 0) {
+                 
+                }
+                else if (strcmp(command, "RUP") == 0) {
+                 
+                }
+                else if (strcmp(command, "RDL") == 0) {
+                 
+                }
+                else if (strcmp(command, "RRM") == 0) {
+                 
+                }
+                memset(buffer, '\0', SIZE * sizeof(char));
+            }
+        }
     }
 }

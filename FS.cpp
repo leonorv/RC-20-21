@@ -14,12 +14,11 @@
 using namespace std;
 
 #define max(A,B)((A)>=(B)?(A):(B))
-//#define IP "tejo.tecnico.ulisboa.pt"
 #define SIZE 128
 
 extern int errno;
 
-char PDIP[SIZE], PDport[SIZE], ASIP[SIZE], ASport[SIZE] = "58030", FSIP[SIZE], FSport[SIZE] = "59030";
+char ASIP[SIZE], ASport[SIZE] = "58030", FSIP[SIZE], FSport[SIZE] = "59030";
 
 void processInput(int argc, char* const argv[]) {
     if (argc%2 != 1) {
@@ -47,13 +46,13 @@ void processInput(int argc, char* const argv[]) {
 }
 
 int main(int argc, char* argv[]) {
-    int udpServerSocket, tcpServerSocket;
+    int udpClientSocket, tcpServerSocket;
     fd_set readfds;
     int maxfd, retval;
-    struct addrinfo hints, *res;
+    struct addrinfo hints_udp, hints_tcp, *res_udp, *res_tcp;
     int fd, newfd, errcode;
-    struct sockaddr_in addr;
-    socklen_t addrlen;
+    struct sockaddr_in addr_udp, addr_tcp;
+    socklen_t addrlen_udp, addrlen_tcp;
     ssize_t n, nread, nw;
     char *ptr, buffer[SIZE], check[3], command[4], password[8], uid[6]="", filename[50], vc[5], op_name[16], tid[5];
 
@@ -63,34 +62,28 @@ int main(int argc, char* argv[]) {
     /*==========================
     Setting up UDP Server Socket
     ==========================*/
-    udpServerSocket = socket(AF_INET, SOCK_DGRAM, 0);//UDP socket
-    if(udpServerSocket == -1)/*error*/exit(1);
+    udpClientSocket = socket(AF_INET, SOCK_DGRAM, 0);//TCP socket
+    if(udpClientSocket == -1)/*error*/exit(1);
 
-    memset(&hints, 0, sizeof hints);
-    hints.ai_family = AF_INET;//IPv4
-    hints.ai_socktype = SOCK_DGRAM;//UDP socket
-    hints.ai_flags = AI_PASSIVE;
+    memset(&hints_udp, 0, sizeof hints_udp);
+    hints_udp.ai_family = AF_INET;//IPv4
+    hints_udp.ai_socktype = SOCK_DGRAM;//UDP socket
 
-    errcode = getaddrinfo(NULL, ASport, &hints, &res);
+    errcode = getaddrinfo(ASIP, ASport, &hints_udp, &res_udp);
     if (errcode != 0)/*error*/exit(1);
-
-    if (bind(udpServerSocket, res->ai_addr, res->ai_addrlen) < 0) exit(1);
 
     /*==========================
     Setting up TCP Server Socket
     ==========================*/
     tcpServerSocket = socket(AF_INET, SOCK_STREAM, 0);//TCP socket
     if(tcpServerSocket == -1)/*error*/exit(1);
-
-    memset(&hints, 0, sizeof hints);
-    hints.ai_family = AF_INET;//IPv4
-    hints.ai_socktype = SOCK_STREAM;//TCP socket
-    hints.ai_flags = AI_PASSIVE;
-
-    errcode = getaddrinfo(NULL, ASport, &hints, &res);
+    memset(&hints_tcp, 0, sizeof hints_tcp);
+    hints_tcp.ai_family = AF_INET;//IPv4
+    hints_tcp.ai_socktype = SOCK_STREAM;//TCP socket
+    hints_tcp.ai_flags = AI_PASSIVE;
+    errcode = getaddrinfo(NULL, ASport, &hints_tcp, &res_tcp);
     if (errcode != 0)/*error*/exit(1);
-
-    if (bind(tcpServerSocket, res->ai_addr, res->ai_addrlen) < 0) exit(1);
+    if (bind(tcpServerSocket, res_tcp->ai_addr, res_tcp->ai_addrlen) < 0) exit(1);
 
     /*==========================
         process standard input
@@ -99,23 +92,22 @@ int main(int argc, char* argv[]) {
 
     while (1){
         FD_ZERO(&readfds);
-        FD_SET(udpServerSocket, &readfds);
+        FD_SET(udpClientSocket, &readfds);
         FD_SET(tcpServerSocket, &readfds);
 
         if(listen(tcpServerSocket,5)==-1)/*error*/exit(1);
-
         /*==========================
         Pick the active file descriptor(s)
         ==========================*/
-        maxfd = max(udpServerSocket, tcpServerSocket);
+        maxfd = max(tcpServerSocket, udpServerSocket);
         retval = select(maxfd + 1, &readfds, NULL, NULL, NULL);
         if (retval <= 0)/*error*/exit(1);
         
         for (; retval; retval--) {
             if(FD_ISSET(udpServerSocket, &readfds))
             {
-                addrlen = sizeof(addr);
-                n = recvfrom(udpServerSocket, buffer, 128, 0, (struct sockaddr*) &addr, &addrlen);
+                addrlen_udp = sizeof(addr_udp);
+                n = recvfrom(udpServerSocket, buffer, 128, 0, (struct sockaddr*) &addr_udp, &addrlen_udp);
                 if (n == -1)/*error*/exit(1);
                 buffer[n] = '\0';
 
@@ -146,14 +138,14 @@ int main(int argc, char* argv[]) {
                     n = strlen(buffer);
                 
                 /*send confirmation message to AS*/
-                n = sendto(udpServerSocket, buffer, n, 0, (struct sockaddr*) &addr, addrlen);
+                n = sendto(udpServerSocket, buffer, n, 0, (struct sockaddr*) &addr_udp, addrlen_udp);
                 if (n == -1)/*error*/exit(1);   
                 memset(buffer, '\0', SIZE * sizeof(char));
             }
             else if(FD_ISSET(tcpServerSocket, &readfds))
             {
-                addrlen=sizeof(addr);
-                if ((newfd=accept(fd,(struct sockaddr*)&addr,&addrlen))==-1)/*error*/exit(1);
+                addrlen_tcp=sizeof(addr_tcp);
+                if ((newfd=accept(fd,(struct sockaddr*)&addr_tcp,&addrlen_tcp))==-1)/*error*/exit(1);
                 while((n=read(newfd,buffer,SIZE))!=0) {
                 if (n==-1)/*error*/exit(1);
 
@@ -168,7 +160,6 @@ int main(int argc, char* argv[]) {
                 {
                     printf("ERR\n");
                 }  
-
                     ptr = &buffer[0];
                     while (n>0) {
                         if ((nw=write(newfd,ptr,n))<=0)/*error*/exit(1);

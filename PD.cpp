@@ -14,7 +14,6 @@
 using namespace std;
 
 #define max(A,B)((A)>=(B)?(A):(B))
-//#define IP "tejo.tecnico.ulisboa.pt"
 #define SIZE 128
 
 extern int errno;
@@ -64,7 +63,6 @@ int main(int argc, char* argv[]){
     char command[SIZE], uid[SIZE], password[SIZE], filename[SIZE], vc[SIZE], op_name[SIZE], fop[SIZE];
     // bool registered = false;
 
-
     if (gethostname(ASIP, SIZE) == -1)
         fprintf(stderr, "error: %s\n", strerror(errno));
     
@@ -77,12 +75,10 @@ int main(int argc, char* argv[]){
     Setting up UDP Client Socket
     ==========================*/
     udpClientSocket = socket(AF_INET, SOCK_DGRAM, 0);//UDP socket
-        if(udpClientSocket == -1)/*error*/exit(1);
-
+    if(udpClientSocket == -1)/*error*/exit(1);
     memset(&hints_c, 0, sizeof hints_c);
     hints_c.ai_family = AF_INET;//IPv4
     hints_c.ai_socktype = SOCK_DGRAM;//UDP socket
-
     errcode_c = getaddrinfo(ASIP, ASport, &hints_c ,&res_c);
     if (errcode_c != 0)/*error*/exit(1);
     
@@ -91,12 +87,10 @@ int main(int argc, char* argv[]){
     ==========================*/
     udpServerSocket = socket(AF_INET, SOCK_DGRAM, 0);//UDP socket
     if(udpServerSocket == -1)/*error*/exit(1);
-
     memset(&hints_s, 0, sizeof hints_s);
     hints_s.ai_family = AF_INET;//IPv4
     hints_s.ai_socktype = SOCK_DGRAM;//UDP socket
     hints_s.ai_flags = AI_PASSIVE;
-
     errcode_s = getaddrinfo(NULL, PDport, &hints_s, &res_s);
     if (errcode_s != 0)/*error*/exit(1);
 
@@ -133,18 +127,14 @@ int main(int argc, char* argv[]){
                     strcat(msg, password);
                     strcat(msg, "\n");
 
-                    printf("exit:%s", msg);
-
                     int n = sendto(udpClientSocket, msg, strlen(msg), 0, res_c->ai_addr, res_c->ai_addrlen);
                     if (n == -1 ) perror("error on sendto");
-
                 }
                 else {
                     /*====================================================
                     Send message from stdin to the server
                     ====================================================*/
                     /* msg = "REG 99999 password" */
-
                     // char temp[SIZE];
                     char temp[SIZE];
                     strcpy(temp, msg);
@@ -154,7 +144,6 @@ int main(int argc, char* argv[]){
                         perror("invalid request");
                         break;
                     }
-
                     // if (registered) {
                     //     memset(temp, '\0', strlen(temp) * sizeof(char));
                     //     strcpy(temp, "already registered as user ");
@@ -171,10 +160,8 @@ int main(int argc, char* argv[]){
                     strcat(strcat(msg, " "), fixedReg);      
 
                     n = sendto(udpClientSocket, msg, strlen(msg), 0, res_c->ai_addr, res_c->ai_addrlen);
-
                     if (n == -1)/*error*/exit(1);     
                 }
-                
             }
             if (FD_ISSET(udpClientSocket, &readfds)) {
                 /*====================================================
@@ -194,7 +181,6 @@ int main(int argc, char* argv[]){
                 else if (strcmp(buffer, "RUN OK\n") == 0) {
                     printf("Unregistration successful\n");  
                     
-                    printf("unr pd - run ok\n");
                     freeaddrinfo(res_c);
                     freeaddrinfo(res_s);
                     close(udpClientSocket);
@@ -203,7 +189,6 @@ int main(int argc, char* argv[]){
                 }
                 else if (strcmp(buffer, "RUN NOK\n") == 0) {
                     printf("Unregistration unsuccessful\n");  
-                    
                 }
                 else 
                     perror("udpclientsocket bad response from AS");
@@ -217,7 +202,6 @@ int main(int argc, char* argv[]){
                 addrlen_s = sizeof(addr_s);
                 n = recvfrom(udpServerSocket, buffer, SIZE, 0, (struct sockaddr*) &addr_s, &addrlen_s);
                 if (n == -1) /*error*/ perror("recv udpServerSocket");
-
                 buffer[n] = '\0';
 
                 /*separate command*/

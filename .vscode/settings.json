@@ -3,5 +3,8 @@
         "iostream": "cpp",
         "fstream": "cpp",
         "*.tcc": "cpp"
-    }
+    },
+    "cSpell.words": [
+        "maxfd"
+    ]
 }
