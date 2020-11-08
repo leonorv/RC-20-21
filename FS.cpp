@@ -54,7 +54,7 @@ int main(int argc, char* argv[]) {
     struct sockaddr_in addr_udp, addr_tcp;
     socklen_t addrlen_udp, addrlen_tcp;
     ssize_t n, nread, nw;
-    char *ptr, buffer[SIZE], check[3], command[4], password[8], uid[6]="", filename[50], vc[5], op_name[16], tid[5];
+    char *ptr, buffer[SIZE], check[3], command[4], password[8], uid[6]="", filename[50], vc[5], op_name[16], tid[5], fop[3];
 
     if (gethostname(ASIP ,SIZE) == -1)
         fprintf(stderr,"error: %s\n",strerror(errno));
@@ -99,15 +99,15 @@ int main(int argc, char* argv[]) {
         /*==========================
         Pick the active file descriptor(s)
         ==========================*/
-        maxfd = max(tcpServerSocket, udpServerSocket);
+        maxfd = max(tcpServerSocket, udpClientSocket);
         retval = select(maxfd + 1, &readfds, NULL, NULL, NULL);
         if (retval <= 0)/*error*/exit(1);
         
         for (; retval; retval--) {
-            if(FD_ISSET(udpServerSocket, &readfds))
+            if(FD_ISSET(udpClientSocket, &readfds))
             {
                 addrlen_udp = sizeof(addr_udp);
-                n = recvfrom(udpServerSocket, buffer, 128, 0, (struct sockaddr*) &addr_udp, &addrlen_udp);
+                n = recvfrom(udpClientSocket, buffer, 128, 0, (struct sockaddr*) &addr_udp, &addrlen_udp);
                 if (n == -1)/*error*/exit(1);
                 buffer[n] = '\0';
 
@@ -121,26 +121,40 @@ int main(int argc, char* argv[]) {
                     token = strtok(NULL, " ");
                     strcpy(tid, token);
                     token = strtok(NULL, " ");
-                    strcpy(op_name, token);
+                    strcpy(fop, token);
                     token = strtok(NULL, " ");
                     strcpy(filename, token);
-                }
+
+                    if (strcmp(fop, "U") == 0) {
+                        strcpy(buffer,"RUP");
+                    }
+                    else if (strcmp(fop, "D") == 0) {
+                        strcpy(buffer,"RDL");
+                    }
+                    else if (strcmp(fop, "R") == 0) {
+                        strcpy(buffer,"RRT");
+                    }
+                    else if (strcmp(fop, "L") == 0) {
+                        strcpy(buffer,"RLS");
+                    }
+                    else if (strcmp(fop, "X") == 0) {
+                        strcpy(buffer,"RRM");
+                    }
+                    else if (strcmp(fop, "E") == 0) {
+                        strcpy(buffer,"E");
+                    }
                 else
                 {
                     printf("ERR\n");
                 }  
-                    /* Print confirmation code to terminal */
-                    printf("VC=%s, %s%s", vc, op_name, filename);
+                    
+                    printf("operation validated\n");
 
-                    /*copy confirmation message to buffer
-                      to send to AS*/
-                    strcpy(buffer, "RVC OK\n");
-                    n = strlen(buffer);
-                
                 /*send confirmation message to AS*/
-                n = sendto(udpServerSocket, buffer, n, 0, (struct sockaddr*) &addr_udp, addrlen_udp);
+                n = sendto(tcpServerSocket, buffer, strlen(buffer), 0, (struct sockaddr*) &addr_tcp, addrlen_tcp);
                 if (n == -1)/*error*/exit(1);   
                 memset(buffer, '\0', SIZE * sizeof(char));
+            }
             }
             else if(FD_ISSET(tcpServerSocket, &readfds))
             {
@@ -152,7 +166,23 @@ int main(int argc, char* argv[]) {
                 char *token = strtok(buffer, " ");
                 strcpy(command, token);
 
-                if (strcmp(command, "RUP") == 0) {
+                if (strcmp(command, "LST") == 0) {
+                    token = strtok(NULL, " ");
+                    strcpy(check, token);
+                }
+                if (strcmp(command, "RTV") == 0) {
+                    token = strtok(NULL, " ");
+                    strcpy(check, token);
+                }
+                if (strcmp(command, "UPL") == 0) {
+                    token = strtok(NULL, " ");
+                    strcpy(check, token);
+                }
+                if (strcmp(command, "DEL") == 0) {
+                    token = strtok(NULL, " ");
+                    strcpy(check, token);
+                }
+                if (strcmp(command, "REM") == 0) {
                     token = strtok(NULL, " ");
                     strcpy(check, token);
                 }
@@ -160,6 +190,14 @@ int main(int argc, char* argv[]) {
                 {
                     printf("ERR\n");
                 }  
+
+                strcpy(buffer,"VLD");
+
+                /*send confirmation message to AS*/
+                n = sendto(udpClientSocket, buffer, strlen(buffer), 0, (struct sockaddr*) &addr_udp, addrlen_udp);
+                if (n == -1)/*error*/exit(1);   
+                memset(buffer, '\0', SIZE * sizeof(char));
+
                     ptr = &buffer[0];
                     while (n>0) {
                         if ((nw=write(newfd,ptr,n))<=0)/*error*/exit(1);

@@ -561,10 +561,18 @@ int main(int argc, char* argv[]) {
                                 
                             }
                             else if (strcmp(command, "AUT") == 0) {
-                                string tid;
                                 if (checkAuthenticationInput(buffer)) {
-                                    tid = checkAuthenticationInput(buffer);
-                                    strcpy(buffer, "RAU %d\n", tid);
+
+                                    int temp = rand() % 8000 + 1000;
+                                    string s_tid = to_string(temp);
+
+                                    char tid[6];
+                                    strcpy(tid, s_tid.c_str());
+
+                                    strcpy(buffer, "RAU");
+                                    strcat(buffer, " ");
+                                    strcat(buffer, tid);
+                                    strcat(buffer, "\n");
                                 }
                                 else 
                                     strcpy(buffer, "RAU 0\n");
