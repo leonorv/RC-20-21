@@ -185,7 +185,7 @@ int main(int argc, char* const argv[]) {
                         if (strcmp(command, "upload") == 0) {
                             /* UPL UID TID Fname Fsize data */
                             // processUpload(msg);
-                            sprintf(ptr, "UPL %s %d %s %s\n", uid, tid, fname, Fsize);
+                            //sprintf(ptr, "UPL %s %d %s %s\n", uid, tid, fname, Fsize);
 
                         }
                         else if (strcmp(command, "retrieve") == 0) {
@@ -219,7 +219,6 @@ int main(int argc, char* const argv[]) {
             }
             else if (FD_ISSET(tcpSocket_AS, &readfds)) {
                 char *token;
-
 
                 n = read(tcpSocket_AS, buffer, SIZE);
                 if (n == -1)  exit(1);

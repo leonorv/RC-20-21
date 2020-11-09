@@ -195,6 +195,17 @@ int checkUnregisterInput(char buffer[SIZE]) {
         strcat(filename, "/reg.txt");   
         remove(filename); /* remove reg.txt */
         rmdir(dirName);
+        memset(filename, '\0', SIZE * sizeof(char));
+        strcpy(filename, dirName);
+        strcat(filename, "/login.txt");   
+        remove(filename); /* remove login.txt */
+        rmdir(dirName);
+        memset(filename, '\0', SIZE * sizeof(char));
+        strcpy(filename, dirName);
+        strcat(filename, "/fdIndex.txt");   
+        remove(filename); /* remove fdIndex.txt */
+        rmdir(dirName);
+        // more files
         return 1;    
     }
     else { /* user directory does not exist */
@@ -245,10 +256,12 @@ int checkLoginInput(char buffer[SIZE]) {
     }
 }
 
-int treatRequestInput(char buffer[SIZE]) {
+int treatRequestInput(char buffer[SIZE], int fdIndex) {
     char filename[SIZE], fname[SIZE], uid[SIZE], rid[SIZE], fop[2], dirName[SIZE], toSend[SIZE], op_name[SIZE];
 
     sscanf(buffer, "REQ %[0-9] %[0-9] %s %s\n", uid, rid, fop, fname);
+
+    // CONFIRMAR SE UID CORRECTO - EUSER
 
     if (strlen(rid) == 1) {
         /* if rid is empty, the user isn't logged in*/
@@ -313,6 +326,17 @@ int treatRequestInput(char buffer[SIZE]) {
     }
     strcat(toSend, "\n");
 
+    /* create file with user fd */
+    memset(filename, '\0', strlen(filename) * sizeof(char));
+    strcpy(filename, dirName);
+    strcat(filename, "/fdIndex.txt");
+    printf("filename: %s, fdIndex: %d\n", filename, fdIndex);
+    ofstream userFdIndex; 
+    userFdIndex.open(filename);
+    userFdIndex << fdIndex;
+    userFdIndex.close();
+
+
     int n = sendto(udpClientSocket, toSend, strlen(toSend), 0, res_uc->ai_addr, res_uc->ai_addrlen);
     if (n == -1)
         perror("VLC send");
@@ -337,12 +361,32 @@ int treatRequestInput(char buffer[SIZE]) {
     return 1;
 }
 
-int treatRVCInput(char buffer[SIZE]) { //as received rvc from pd and he's going to send ok/nok to user
-    char uid[SIZE], buffer[SIZE], status[SIZE];
+void treatRVCInput(char buffer[SIZE]) { //as received rvc from pd and he's going to send ok/nok to user
+    char uid[SIZE], msg[SIZE], status[SIZE], dirName[SIZE] = "users/";
+    int fdIndex;
 
     sscanf(buffer, "RVC %[0-9] %s\n", uid, status);
-    if (strcmp(status, "OK\n") == 0) return 1;
-    return 0;
+
+    strcat(dirName, uid);
+    strcat(dirName, "/fdIndex.txt");
+
+    string index;
+    ifstream indexFile;
+    indexFile.open(dirName);
+    getline(indexFile, index);
+    indexFile.close();
+    remove(dirName);
+    // index
+    fdIndex = atoi(index.c_str());
+
+    if (strcmp(status, "OK\n") != 0) 
+        strcpy(msg, "RRQ OK\n");
+        
+    else 
+        strcpy(msg, "RRQ EPD\n");
+
+    if (send(fdClients[fdIndex], msg, strlen(msg), 0) != strlen(msg))
+        perror("RRQ send");
 }
 
 int checkAuthenticationInput(char buffer[SIZE]) {
@@ -424,12 +468,8 @@ int main(int argc, char* argv[]) {
 
                 if (strcmp(command, "RVC") == 0) {
                     // printf("RVC-test\n");
-                    if (treatRVCInput(buffer)) {
-                        // strcpy(buffer, "RRQ OK\n");
-                    }
-                    else {
-                        // strcpy(buffer, "RRQ NOK\n"); ////// erros!
-                    }
+                    treatRVCInput(buffer);
+
                 }
                 memset(command, '\0', SIZE * sizeof(char));
                 memset(buffer, '\0', SIZE * sizeof(char));
@@ -517,8 +557,7 @@ int main(int argc, char* argv[]) {
                         }
                         else if (strcmp(command, "REQ") == 0) {
                             
-                            
-                            int reqResult = treatRequestInput(buffer);
+                            int reqResult = treatRequestInput(buffer, i);
                             //send error to user
                             strcpy(buffer, "RRQ ");
                             if (reqResult == ERR)
