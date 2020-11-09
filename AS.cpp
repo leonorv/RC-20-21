@@ -338,8 +338,11 @@ int treatRequestInput(char buffer[SIZE]) {
 }
 
 int treatRVCInput(char buffer[SIZE]) { //as received rvc from pd and he's going to send ok/nok to user
-    
-    return 1;
+    char uid[SIZE], buffer[SIZE], status[SIZE];
+
+    sscanf(buffer, "RVC %[0-9] %s\n", uid, status);
+    if (strcmp(status, "OK\n") == 0) return 1;
+    return 0;
 }
 
 int checkAuthenticationInput(char buffer[SIZE]) {
@@ -403,7 +406,10 @@ int main(int argc, char* argv[]) {
         retval = select(maxfd + 1, &readfds, NULL, NULL, NULL);
             if (retval <= 0) { perror("select retval"); exit(1); }
         
+        
         for (; retval; retval--) {
+            memset(command, '\0', SIZE * sizeof(char));
+            memset(buffer, '\0', SIZE * sizeof(char));
             //-------------------------------------------------------------------------------------
             if (FD_ISSET(udpClientSocket, &readfds)) {
                 /*============================
@@ -419,10 +425,10 @@ int main(int argc, char* argv[]) {
                 if (strcmp(command, "RVC") == 0) {
                     // printf("RVC-test\n");
                     if (treatRVCInput(buffer)) {
-                        strcpy(buffer, "RRQ OK\n");
+                        // strcpy(buffer, "RRQ OK\n");
                     }
                     else {
-                        strcpy(buffer, "RRQ NOK\n"); ////// erros!
+                        // strcpy(buffer, "RRQ NOK\n"); ////// erros!
                     }
                 }
                 memset(command, '\0', SIZE * sizeof(char));
@@ -458,10 +464,8 @@ int main(int argc, char* argv[]) {
                 }
                 
                 /* sends ok or not ok to pd */
-                n = sendto(udpServerSocket, buffer, n, 0, (struct sockaddr*) &addr_us, addrlen_us);
-                    if (n == -1) { perror("sendto udp server socket"); exit(1); }
-                memset(command, '\0', SIZE * sizeof(char));
-                memset(buffer, '\0', SIZE * sizeof(char));
+                n = sendto(udpServerSocket, buffer, strlen(buffer), 0, (struct sockaddr*) &addr_us, addrlen_us);
+                if (n == -1) { perror("sendto udp server socket"); continue; }
             }
             else if (FD_ISSET(tcpServerSocket, &readfds)) {
                 /*===========================================
@@ -513,6 +517,7 @@ int main(int argc, char* argv[]) {
                         }
                         else if (strcmp(command, "REQ") == 0) {
                             
+                            
                             int reqResult = treatRequestInput(buffer);
                             //send error to user
                             strcpy(buffer, "RRQ ");
@@ -527,7 +532,8 @@ int main(int argc, char* argv[]) {
                             else if (reqResult == EPD)
                                 strcat(buffer, "EPD\n");
                             else {
-                                strcat(buffer, "OK\n");
+                                //strcat(buffer, "OK\n");
+                                continue; //wait for pd confirmation
                             }
                             
                             if (send(fd, buffer, strlen(buffer), 0) != strlen(buffer))

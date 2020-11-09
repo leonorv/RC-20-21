@@ -54,21 +54,16 @@ void processInput(int argc, char* const argv[]) {
 }
 
 int setTCPClientFS() {
-    printf("fsport: %s, fsip: %s\n", FSport, FSIP); fflush(stdout);
     tcpSocket_FS = socket(AF_INET, SOCK_STREAM, 0);
     if (tcpSocket_FS == -1) { perror("socket FS"); return 0; }
     memset(&hints_FS, 0, sizeof(hints_FS));
     hints_FS.ai_family = AF_INET;
     hints_FS.ai_socktype = SOCK_STREAM;
-    printf("before addrinfo\n"); fflush(stdout);
     errcode = getaddrinfo(FSIP, FSport, &hints_FS, &res_FS);  
     if (errcode != 0) { perror("FS addr info"); return 0; }
-    printf("after addrinfo\n"); fflush(stdout);
     int n = connect(tcpSocket_FS, res_FS->ai_addr, res_FS->ai_addrlen);
     if (n == -1) { perror("socket FS"); return 0; }
-    printf("before set\n"); fflush(stdout);
     FD_SET(tcpSocket_FS, &readfds);
-    printf("setted\n"); fflush(stdout);
     maxfd = max(maxfd, tcpSocket_FS); 
     return 1;
 }
@@ -102,10 +97,6 @@ int main(int argc, char* const argv[]) {
 
     n = connect(tcpSocket_AS, res_AS->ai_addr, res_AS->ai_addrlen);
         if (n == -1) { perror("connect AS"); exit(1); }
-
-    //setTCPClientFS();
-
-    
 
     while (1) {
         FD_ZERO(&readfds);
@@ -155,18 +146,18 @@ int main(int argc, char* const argv[]) {
                             strcpy(uidTemp, token);
 
                             token = strtok(NULL, " "); /* token has password */
-                            // strcpy(password, token);
                             sprintf(ptr, "LOG %s %s", uidTemp, token);
-                            // printf("received from stdin: %s", ptr);
                         }
                         else if (strcmp(command, "req") == 0) {
 
                             memset(fop, '\0', strlen(fop) * sizeof(char));
                             memset(filename, '\0', strlen(filename) * sizeof(char));
-                            // memset(uid, '\0', strlen(uid) * sizeof(char));
                             rID = rand() % 9000 + 1000;
                             sscanf(msg, "req %s %s\n", fop, filename);
-                            sprintf(ptr, "REQ %s %d %s %s\n", uid, rID, fop, filename);
+                            if (strlen(filename) != 0)
+                                sprintf(ptr, "REQ %s %d %s %s\n", uid, rID, fop, filename);
+                            else 
+                                sprintf(ptr, "REQ %s %d %s\n", uid, rID, fop);
 
                         }
                         else if (strcmp(command, "val") == 0) {
@@ -178,21 +169,23 @@ int main(int argc, char* const argv[]) {
                             /* continue if incorrect command */
                             perror("invalid request");
                             continue;
-                        }
+                        }   
                         nbytes = strlen(ptr);
                         nleft = nbytes;
+
+                        // REQ UID RID Fop [Fname]
                         n = write(tcpSocket_AS, ptr, nleft);
                         if (n <= 0) { perror("tcp write"); exit(1); }
 
                     }
                     else if (strcmp(command, "upload") == 0 || strcmp(command, "retrieve") == 0 || strcmp(command, "delete") == 0 || strcmp(command, "remove\n") == 0 || strcmp(command, "remove\n") == 0 || strcmp(command, "list\n") == 0) {
-                        printf("oiii\n"); fflush(stdout);
                         if (!setTCPClientFS()) {
                             perror("setup FS socket");
                         }
                         if (strcmp(command, "upload") == 0) {
                             /* UPL UID TID Fname Fsize data */
                             // processUpload(msg);
+                            sprintf(ptr, "UPL %s %d %s %s\n", uid, tid, fname, Fsize);
 
                         }
                         else if (strcmp(command, "retrieve") == 0) {
@@ -227,9 +220,11 @@ int main(int argc, char* const argv[]) {
             else if (FD_ISSET(tcpSocket_AS, &readfds)) {
                 char *token;
 
+
                 n = read(tcpSocket_AS, buffer, SIZE);
                 if (n == -1)  exit(1);
                 buffer[n] = '\0';
+
 
                 token = strtok(buffer, " ");
                 strcpy(command, token);
@@ -258,6 +253,8 @@ int main(int argc, char* const argv[]) {
                         printf("Unable to connect to personal device.\n");
                     else if (strcmp(token, "EUSER\n") == 0)
                         printf("Incorrect user.\n");
+                    else if (strcmp(token, "ERR\n") == 0)
+                        printf("Incorrect request.\n");
                     else 
                         printf("Request accepted\n"); 
                 }
@@ -278,14 +275,13 @@ int main(int argc, char* const argv[]) {
             }
             else if (FD_ISSET(tcpSocket_FS, &readfds)) {
 
+
                 char *token;
 
                 n = read(tcpSocket_FS, buffer, SIZE);
-                printf("len do buffer: %s\n", buffer);
                 if (n == -1)  exit(1);
                 buffer[n] = '\0';
 
-                printf("recebeu do fs: %s\n", buffer);
 
                 token = strtok(buffer, " ");
                 //strcpy(command, token);

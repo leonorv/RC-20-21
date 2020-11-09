@@ -60,8 +60,8 @@ int main(int argc, char* argv[]){
     struct addrinfo hints_c, hints_s, *res_c, *res_s;
     struct sockaddr_in addr_c, addr_s;
     char buffer[SIZE], msg[SIZE];
-    char command[SIZE], uid[SIZE], password[SIZE], filename[SIZE], vc[SIZE], op_name[SIZE], fop[SIZE];
-    // bool registered = false;
+    char command[SIZE], uid[SIZE], uidTemp[SIZE], password[SIZE], passwordTemp[SIZE], filename[SIZE], vc[SIZE], op_name[SIZE], fop[SIZE];
+
 
     if (gethostname(ASIP, SIZE) == -1)
         fprintf(stderr, "error: %s\n", strerror(errno));
@@ -93,7 +93,8 @@ int main(int argc, char* argv[]){
     hints_s.ai_flags = AI_PASSIVE;
     errcode_s = getaddrinfo(NULL, PDport, &hints_s, &res_s);
         if (errcode_s != 0)/*error*/exit(1);
-    if (bind(udpServerSocket, res_s->ai_addr, res_s->ai_addrlen) < 0) exit(1);
+    if (bind(udpServerSocket, res_s->ai_addr, res_s->ai_addrlen) < 0) { perror("bind udp server socket"); exit(1); }
+    printf("PDport: %s, PDIP: %s\n", PDport, PDIP);
     
     while (1) {
         FD_ZERO(&readfds);
@@ -109,8 +110,15 @@ int main(int argc, char* argv[]){
             if (retval <= 0) /*error*/ exit(1);
         
         for (; retval; retval--) {
+            memset(command, '\0', strlen(command) * sizeof(char));
+            memset(vc, '\0', strlen(vc) * sizeof(char));
+            memset(op_name, '\0', strlen(op_name) * sizeof(char));
+            memset(fop, '\0', strlen(fop) * sizeof(char));
+            memset(filename, '\0', strlen(filename) * sizeof(char));
+            memset(buffer, '\0', strlen(buffer) * sizeof(char));
+            memset(msg, '\0', strlen(msg) * sizeof(char));
+
             if (FD_ISSET(afd, &readfds)){
-                memset(msg, '\0', strlen(msg) * sizeof(char));
                 fgets(msg, SIZE, stdin);
                 /* msg is input written in standard input*/
                 strtok(msg, "\n");
@@ -119,7 +127,6 @@ int main(int argc, char* argv[]){
                     Free data structures and close socket connections
                     ====================================================*/
                     // registered = false;
-                    memset(msg, '\0', SIZE * sizeof(char));
                     strcpy(msg, "UNR ");
                     strcat(msg, uid);
                     strcat(msg, " ");
@@ -133,6 +140,8 @@ int main(int argc, char* argv[]){
                     /*====================================================
                     Send message from stdin to the server
                     ====================================================*/
+                    memset(uidTemp, '\0', strlen(uidTemp) * sizeof(char));
+                    memset(passwordTemp, '\0', strlen(passwordTemp) * sizeof(char));
                     char temp[SIZE];
                     strcpy(temp, msg);
                     char *token = strtok(temp, " ");
@@ -141,22 +150,15 @@ int main(int argc, char* argv[]){
                         perror("invalid request");
                         break;
                     }
-                    // if (registered) {
-                    //     memset(temp, '\0', strlen(temp) * sizeof(char));
-                    //     strcpy(temp, "already registered as user ");
-                    //     strcat(temp, uid);
-                    //     perror(temp);
-                    //     break;
-                    // }
 
-                    memset(uid, '\0', strlen(uid) * sizeof(char));
-                    memset(password, '\0', strlen(password) * sizeof(char));
-                    sscanf(msg, "reg %s %s\n", uid, password);
+                    sscanf(msg, "reg %s %s\n", uidTemp, passwordTemp);
 
-                    strcat(strcat(strcat(strcpy(msg, "REG "), uid), " "), password);
-                    strcat(strcat(msg, " "), fixedReg);      
+                    strcat(strcat(strcat(strcpy(buffer, "REG "), uidTemp), " "), passwordTemp);
+                    strcat(strcat(buffer, " "), fixedReg);   
 
-                    n = sendto(udpClientSocket, msg, strlen(msg), 0, res_c->ai_addr, res_c->ai_addrlen);
+                    printf("sending to as in client socket: %s\n", buffer);   
+
+                    n = sendto(udpClientSocket, buffer, strlen(buffer), 0, res_c->ai_addr, res_c->ai_addrlen);
                         if (n == -1)/*error*/exit(1);     
                 }
             }
@@ -170,6 +172,10 @@ int main(int argc, char* argv[]){
                 buffer[n] = '\0';
 
                 if (strcmp(buffer, "RRG OK\n") == 0) {
+                    memset(uid, '\0', strlen(uid) * sizeof(char));
+                    memset(password, '\0', strlen(password) * sizeof(char));
+                    strcpy(uid, uidTemp);
+                    strcpy(password, passwordTemp);
                     printf("Registration successful\n");  
                 }
                 else if (strcmp(buffer, "RRG NOK\n") == 0) {
@@ -210,14 +216,15 @@ int main(int argc, char* argv[]){
                 char *token = strtok(buffer, " ");
                 strcpy(command, token);
 
+
                 if (strcmp(command, "VLC") == 0) {
                     token = strtok(NULL, " ");
-                    strcpy(uid, token);
+                    strcpy(uidTemp, token);
                     token = strtok(NULL, " ");
                     strcpy(vc, token);
                     token = strtok(NULL, " ");
                     strcpy(fop, token);
-                    if (strcmp(fop, "L\n") != 0 || strcmp(fop, "X\n") != 0) {
+                    if (strcmp(fop, "L\n") != 0 && strcmp(fop, "X\n") != 0) {
                         token = strtok(NULL, " ");
                         strcpy(filename, token);
                     } else {
@@ -233,17 +240,18 @@ int main(int argc, char* argv[]){
                     else if (strcmp(fop, "D") == 0) {
                         strcpy(op_name, "retrieve:");
                     } 
-                    else if (strcmp(fop, "L") == 0) {
+                    else if (strcmp(fop, "L\n") == 0) {
                         strcpy(op_name, "list\n");
                     }  
-                    else if (strcmp(fop, "X") == 0) {
+                    else if (strcmp(fop, "X\n") == 0) {
                         strcpy(op_name, "remove\n");
                     }
                     else{
-                        printf("ERROR\n");
+                        perror("incorrect request command");
+                        continue;
                     }
 
-                    if (strcmp(fop, "L") == 0 || strcmp(fop, "X") == 0) {
+                    if (strcmp(fop, "L\n") == 0 || strcmp(fop, "X\n") == 0) {
                         printf("VC=%s, %s", vc, op_name);
                     }
                     else {
@@ -251,19 +259,20 @@ int main(int argc, char* argv[]){
                     }
 
                     /*copy confirmation message to buffer to send to AS*/
-                    strcpy(buffer, "RVC OK\n");
+                    if (strcmp(uidTemp, uid) == 0) {
+                        strcpy(buffer, "RVC ");
+                        strcat(buffer, uid);
+                        strcat(buffer, " OK\n");
+                    }
+                    else {
+                        strcpy(buffer, "RVC ");
+                        strcat(buffer, uid);
+                        strcat(buffer, " NOK\n");
+                    }
                 }
-
-                /*send confirmation message to AS*/
                 n = sendto(udpServerSocket, buffer, strlen(buffer), 0, (struct sockaddr*) &addr_s, addrlen_s);
-                    if (n == -1) /*error*/ exit(1);   
+                    if (n == -1) { perror("sendto udp server socket"); exit(1); } 
 
-                memset(command, '\0', strlen(command) * sizeof(char));
-                memset(vc, '\0', strlen(vc) * sizeof(char));
-                memset(op_name, '\0', strlen(op_name) * sizeof(char));
-                memset(fop, '\0', strlen(fop) * sizeof(char));
-                memset(filename, '\0', strlen(filename) * sizeof(char));
-                memset(buffer, '\0', strlen(buffer) * sizeof(char));
             }
         }
     }
