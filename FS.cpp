@@ -68,26 +68,24 @@ int main(int argc, char* argv[]) {
     Setting up UDP Server Socket
     ==========================*/
     udpClientSocket = socket(AF_INET, SOCK_DGRAM, 0);//UDP socket
-    if(udpClientSocket == -1)/*error*/exit(1);
-
+        if (udpClientSocket == -1)/*error*/exit(1);
     memset(&hints_udp, 0, sizeof hints_udp);
     hints_udp.ai_family = AF_INET;//IPv4
     hints_udp.ai_socktype = SOCK_DGRAM;//UDP socket
-
     errcode = getaddrinfo(ASIP, ASport, &hints_udp, &res_udp);
-    if (errcode != 0)/*error*/exit(1);
+        if (errcode != 0)/*error*/exit(1);
 
     /*==========================
     Setting up TCP Server Socket
     ==========================*/
     tcpServerSocket = socket(AF_INET, SOCK_STREAM, 0);//TCP socket
-    if(tcpServerSocket == -1)/*error*/exit(1);
+        if (tcpServerSocket == -1)/*error*/exit(1);
     memset(&hints_tcp, 0, sizeof hints_tcp);
     hints_tcp.ai_family = AF_INET;//IPv4
     hints_tcp.ai_socktype = SOCK_STREAM;//TCP socket
     hints_tcp.ai_flags = AI_PASSIVE;
     errcode = getaddrinfo(NULL, FSport, &hints_tcp, &res_tcp);
-    if (errcode != 0)/*error*/exit(1);
+        if (errcode != 0)/*error*/exit(1);
     if (bind(tcpServerSocket, res_tcp->ai_addr, res_tcp->ai_addrlen) < 0) exit(1);
 
     /* Initialize TCP babies fds */
@@ -130,10 +128,10 @@ int main(int argc, char* argv[]) {
         ==========================*/
         maxfd = max(maxfd, udpClientSocket);
         retval = select(maxfd + 1, &readfds, NULL, NULL, NULL);
-        if (retval <= 0)/*error*/exit(1);
+            if (retval <= 0)/*error*/exit(1);
         
         for (; retval; retval--) {
-            if(FD_ISSET(udpClientSocket, &readfds))
+            if (FD_ISSET(udpClientSocket, &readfds))
             {
                 addrlen_udp = sizeof(addr_udp);
                 n = recvfrom(udpClientSocket, buffer, 128, 0, (struct sockaddr*) &addr_udp, &addrlen_udp);
@@ -181,11 +179,11 @@ int main(int argc, char* argv[]) {
 
                 /*send confirmation message to AS*/
                 n = sendto(tcpServerSocket, buffer, strlen(buffer), 0, (struct sockaddr*) &addr_tcp, addrlen_tcp);
-                if (n == -1)/*error*/exit(1);   
+                    if (n == -1)/*error*/exit(1);   
                 memset(buffer, '\0', SIZE * sizeof(char));
             }
             }
-            else if(FD_ISSET(tcpServerSocket, &readfds))
+            else if (FD_ISSET(tcpServerSocket, &readfds))
             {
                 addrlen_tcp = sizeof(addr_tcp);
                 if ((newfd = accept(tcpServerSocket, (struct sockaddr*)&addr_tcp, &addrlen_tcp)) == -1) { perror("accept tcp server socket"); exit(1); }
@@ -193,7 +191,7 @@ int main(int argc, char* argv[]) {
                 //add new socket to array of sockets  
                 for (int i = 0; i < maxUsers; i++) {   
                     //if position is empty  
-                    if(fdClients[i] == 0 ) {  
+                    if (fdClients[i] == 0 ) {  
                         fdClients[i] = newfd;   
                         break;   
                     }   
@@ -248,7 +246,7 @@ int main(int argc, char* argv[]) {
 
                         /*send confirmation message to AS*/
                         n = sendto(udpClientSocket, buffer, strlen(buffer), 0, (struct sockaddr*) &addr_udp, addrlen_udp);
-                        if (n == -1)/*error*/exit(1);   
+                            if (n == -1)/*error*/exit(1);   
                     }
                     memset(buffer, '\0', SIZE * sizeof(char));    
                 }

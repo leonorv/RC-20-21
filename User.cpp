@@ -12,14 +12,12 @@
 
 using namespace std;
 
-//#define IP "tejo.tecnico.ulisboa.pt"
 #define SIZE 128
-
-#define max(A,B)((A)>(B)?(A):(B))
+#define max(A,B)((A)>=(B)?(A):(B))
 
 extern int errno;
 
-char ASIP[SIZE], ASport[SIZE] = "58030", FSIP[SIZE] = "tejo.tecnico.ulisboa.pt", FSport[SIZE] = "59030";
+char ASIP[SIZE], ASport[SIZE] = "58030", FSIP[SIZE], FSport[SIZE] = "59030";
 
 void processInput(int argc, char* const argv[]) {
     if (argc % 2 != 1) {
@@ -75,28 +73,23 @@ int main(int argc, char* const argv[]) {
         Setting up TCP Socket
     ==========================*/
     tcpSocket_AS = socket(AF_INET, SOCK_STREAM, 0);
-    if (tcpSocket_AS == -1) { perror("socket AS"); exit(1); }
-   
+        if (tcpSocket_AS == -1) { perror("socket AS"); exit(1); }
     memset(&hints_AS, 0, sizeof(hints_AS));
     hints_AS.ai_family = AF_INET;
     hints_AS.ai_socktype = SOCK_STREAM;
-
     errcode = getaddrinfo(ASIP, ASport, &hints_AS, &res_AS);  
-    if (errcode != 0) { perror("AS addr info"); exit(1); }
+        if (errcode != 0) { perror("AS addr info"); exit(1); }
 
     n = connect(tcpSocket_AS, res_AS->ai_addr, res_AS->ai_addrlen);
-    if (n == -1) { perror("connect AS"); exit(1); }
+        if (n == -1) { perror("connect AS"); exit(1); }
 
     tcpSocket_FS = socket(AF_INET, SOCK_STREAM, 0);
-    if (tcpSocket_FS == -1) { perror("socket FS"); exit(1); }
-   
+        if (tcpSocket_FS == -1) { perror("socket FS"); exit(1); }
     memset(&hints_FS, 0, sizeof(hints_FS));
     hints_FS.ai_family = AF_INET;
     hints_FS.ai_socktype = SOCK_STREAM;
-
     errcode = getaddrinfo(FSIP, FSport, &hints_FS, &res_FS);  
-    if (errcode != 0) { perror("FS addr info"); exit(1); }
-
+        if (errcode != 0) { perror("FS addr info"); exit(1); }
     n = connect(tcpSocket_FS, res_FS->ai_addr, res_FS->ai_addrlen);
         if (n == -1) { perror("socket FS"); exit(1); }
 
@@ -106,10 +99,6 @@ int main(int argc, char* const argv[]) {
         FD_SET(tcpSocket_AS, &readfds);
         FD_SET(tcpSocket_FS, &readfds);
 
-        printf("afdsocket fd:%d\n", FD_ISSET(afd, &readfds));
-        printf("assocket fd:%d\n", FD_ISSET(tcpSocket_AS, &readfds));
-        printf("fssocket fd:%d\n", FD_ISSET(tcpSocket_FS, &readfds));
-
         /*==========================
         Pick the active file descriptor(s)
         ==========================*/
@@ -118,9 +107,7 @@ int main(int argc, char* const argv[]) {
         if (retval <= 0) { perror("select"); exit(1); }
 
         for (; retval; retval--) {
-            printf("rv: %d\n", retval);
-            if(FD_ISSET(afd, &readfds)) {
-                printf("TA SET DO STDIN!!\n"); fflush(stdout);
+            if (FD_ISSET(afd, &readfds)) {
 
                 memset(msg, '\0', strlen(msg) * sizeof(char));
                 fgets(msg, SIZE, stdin);
@@ -147,7 +134,7 @@ int main(int argc, char* const argv[]) {
                     char *token = strtok(temp, " ");
                     strcpy(command, token);
 
-                    if(strcmp(command, "login") == 0 || strcmp(command, "req") == 0 || strcmp(command, "val") == 0) {
+                    if (strcmp(command, "login") == 0 || strcmp(command, "req") == 0 || strcmp(command, "val") == 0) {
                         if (strcmp(command, "login") == 0) {
                             token = strtok(NULL, " ");
                             strcpy(uidTemp, token);
@@ -156,10 +143,8 @@ int main(int argc, char* const argv[]) {
                             // strcpy(password, token);
                             sprintf(ptr, "LOG %s %s", uidTemp, token);
                             // printf("received from stdin: %s", ptr);
-
                         }
                         else if (strcmp(command, "req") == 0) {
-
 
                             memset(fop, '\0', strlen(fop) * sizeof(char));
                             memset(filename, '\0', strlen(filename) * sizeof(char));
@@ -185,7 +170,7 @@ int main(int argc, char* const argv[]) {
                         if (n <= 0) { perror("tcp write"); exit(1); }
 
                     }
-                    else if(strcmp(command, "upload") == 0 || strcmp(command, "retrieve") == 0 || strcmp(command, "delete") == 0 || strcmp(command, "remove") == 0 || strcmp(command, "list") == 0) {
+                    else if (strcmp(command, "upload") == 0 || strcmp(command, "retrieve") == 0 || strcmp(command, "delete") == 0 || strcmp(command, "remove") == 0 || strcmp(command, "list") == 0) {
                         if (strcmp(command, "upload") == 0) {
                         
                         }
@@ -211,9 +196,7 @@ int main(int argc, char* const argv[]) {
                     }
                 }
             }
-            else if(FD_ISSET(tcpSocket_AS, &readfds)) {
-                printf("TA SET DO AS!!\n"); fflush(stdout);
-
+            else if (FD_ISSET(tcpSocket_AS, &readfds)) {
                 char *token;
 
                 n = read(tcpSocket_AS, buffer, SIZE);
@@ -253,7 +236,7 @@ int main(int argc, char* const argv[]) {
                 else if (strcmp(command, "RAU") == 0) {
                     token = strtok(NULL, " ");
                     tid = atoi(token);
-                    if(tid == 0) {
+                    if (tid == 0) {
                         printf("Authentication failed! (TID=%d)\n", tid); 
                     }
                     else if (tid != 0) {
@@ -263,7 +246,7 @@ int main(int argc, char* const argv[]) {
                 memset(buffer, '\0', SIZE * sizeof(char));
                 free(ptr);
             }
-            else if(FD_ISSET(tcpSocket_FS, &readfds)) {
+            else if (FD_ISSET(tcpSocket_FS, &readfds)) {
 
                 char *token;
 
@@ -291,7 +274,6 @@ int main(int argc, char* const argv[]) {
                 else if (strcmp(command, "RRM") == 0) {
                  
                 }
-                // FD_CLR(tcpSocket_FS);
             }
             memset(buffer, '\0', SIZE * sizeof(char));
         }

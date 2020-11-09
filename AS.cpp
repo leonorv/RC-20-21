@@ -67,14 +67,14 @@ void processInput(int argc, char* const argv[]) {
 
 int setupUDPClientSocket(char PDIP[SIZE], char PDport[SIZE]) {
     udpClientSocket = socket(AF_INET, SOCK_DGRAM, 0); //UDP socket
-    if (udpClientSocket == -1) /*error*/return 0;
+        if (udpClientSocket == -1) /*error*/return 0;
     memset(&hints_uc, 0, sizeof hints_uc);
     hints_uc.ai_family = AF_INET; //IPv4
     hints_uc.ai_socktype = SOCK_DGRAM; //UDP socket
     errcode = getaddrinfo(PDIP, PDport, &hints_uc, &res_uc);
     memset(PDIP, '\0', SIZE * sizeof(char));
     memset(PDport, '\0', SIZE * sizeof(char));
-    if (errcode != 0) /*error*/ return 0;
+        if (errcode != 0) /*error*/ return 0;
     FD_SET(udpClientSocket, &readfds);
     maxfd = max2(maxfd, udpClientSocket);   
     return 1;
@@ -82,29 +82,27 @@ int setupUDPClientSocket(char PDIP[SIZE], char PDport[SIZE]) {
 
 void setupUDPServerSocket() {
     udpServerSocket = socket(AF_INET, SOCK_DGRAM, 0); //UDP socket
-    if(udpServerSocket == -1)  { perror("udp server socket"); exit(1); }
+        if (udpServerSocket == -1)  { perror("udp server socket"); exit(1); }
     memset(&hints_us, 0, sizeof hints_us);
     hints_us.ai_family = AF_INET; //IPv4
     hints_us.ai_socktype = SOCK_DGRAM; //UDP socket
     hints_us.ai_flags = AI_PASSIVE;
     errcode = getaddrinfo(NULL, ASport, &hints_us, &res_us);
-    if (errcode != 0) { perror("USS get addr info"); exit(1); }
+        if (errcode != 0) { perror("USS get addr info"); exit(1); }
     if (bind(udpServerSocket, res_us->ai_addr, res_us->ai_addrlen) < 0)  { perror("bind udp server socket"); exit(1); }
 }
 
 void setupTCPServerSocket() {
     tcpServerSocket = socket(AF_INET, SOCK_STREAM, 0);//TCP socket
-    if(tcpServerSocket == -1) { perror("tcp server socket"); exit(1); }
+        if (tcpServerSocket == -1) { perror("tcp server socket"); exit(1); }
     memset(&hints_ts, 0, sizeof hints_ts);
     hints_ts.ai_family = AF_INET;//IPv4
     hints_ts.ai_socktype = SOCK_STREAM;//TCP socket
     hints_ts.ai_flags = AI_PASSIVE;
     errcode = getaddrinfo(NULL, ASport, &hints_ts, &res_ts);
-    if (errcode != 0) { perror("TSS get addr info"); exit(1); }
+        if (errcode != 0) { perror("TSS get addr info"); exit(1); }
     if (bind(tcpServerSocket, res_ts->ai_addr, res_ts->ai_addrlen) < 0) { perror("bind tcp server socket"); exit(1); }
 }
-
-
 
 int checkRegisterInput(char buffer[SIZE]) {    
     char filename[SIZE], password[SIZE], uid[SIZE], pdip[SIZE], pdport[SIZE], driName[SIZE];
@@ -114,7 +112,6 @@ int checkRegisterInput(char buffer[SIZE]) {
     if (strlen(password) == 1 || strlen(password) != 8) return 0;
     if (strlen(pdip) == 1) return 0;
     if (strlen(pdport) == 1 || strlen(pdport) != 5) return 0;
-
 
     strcpy(dirName, "users/");
     strcat(dirName, uid);
@@ -139,7 +136,6 @@ int checkRegisterInput(char buffer[SIZE]) {
         strcpy(filename, dirName);
         strcat(filename, "/reg.txt");
         remove(filename);
-
     }
     else {
         /* If User has not been registered */
@@ -391,11 +387,11 @@ int main(int argc, char* argv[]) {
             fd = fdClients[i];   
                  
             //if valid socket descriptor then add to read list  
-            if(fd > 0)   
+            if (fd > 0)   
                 FD_SET(fd , &readfds);   
                  
             //highest file descriptor number, need it for the select function  
-            if(fd > maxfd)   
+            if (fd > maxfd)   
                 maxfd = fd;   
         }   
 
@@ -405,11 +401,11 @@ int main(int argc, char* argv[]) {
         maxfd = max2(udpServerSocket, maxfd);
         maxfd = max2(maxfd, udpClientSocket);
         retval = select(maxfd + 1, &readfds, NULL, NULL, NULL);
-        if (retval <= 0) { perror("select retval"); exit(1); }
+            if (retval <= 0) { perror("select retval"); exit(1); }
         
         for (; retval; retval--) {
             //-------------------------------------------------------------------------------------
-            if(FD_ISSET(udpClientSocket, &readfds)) {
+            if (FD_ISSET(udpClientSocket, &readfds)) {
                 /*============================
                         PD -> RVC status
                 ============================*/
@@ -432,7 +428,7 @@ int main(int argc, char* argv[]) {
                 memset(command, '\0', SIZE * sizeof(char));
                 memset(buffer, '\0', SIZE * sizeof(char));
             }
-            else if(FD_ISSET(udpServerSocket, &readfds)) {
+            else if (FD_ISSET(udpServerSocket, &readfds)) {
                 /*===========================================
                         PD -> REG UID pass PDIP PDport
                         PD -> UNR UID pass
@@ -463,11 +459,11 @@ int main(int argc, char* argv[]) {
                 
                 /* sends ok or not ok to pd */
                 n = sendto(udpServerSocket, buffer, n, 0, (struct sockaddr*) &addr_us, addrlen_us);
-                if (n == -1) { perror("sendto udp server socket"); exit(1); }
+                    if (n == -1) { perror("sendto udp server socket"); exit(1); }
                 memset(command, '\0', SIZE * sizeof(char));
                 memset(buffer, '\0', SIZE * sizeof(char));
             }
-            else if(FD_ISSET(tcpServerSocket, &readfds)) {
+            else if (FD_ISSET(tcpServerSocket, &readfds)) {
                 /*===========================================
                         USER -> LOG UID pass
                         USER -> REQ UID RID Fop [Fname]
@@ -479,7 +475,7 @@ int main(int argc, char* argv[]) {
                 //add new socket to array of sockets  
                 for (int i = 0; i < maxUsers; i++) {   
                     //if position is empty  
-                    if(fdClients[i] == 0 ) {  
+                    if (fdClients[i] == 0 ) {  
                         fdClients[i] = newfd;   
                         break;   
                     }   
@@ -502,26 +498,20 @@ int main(int argc, char* argv[]) {
                     else {
                             /* get command code */
                         strncpy(command, buffer, 3);
-                        printf(" buffer: %s", buffer);
 
                         if (strcmp(command, "LOG") == 0) {
-                            printf("ANTES DAS CENAS\n"); fflush(stdout);
                             if (checkLoginInput(buffer)) {
-                                printf("chegou ao rlo\n");
                                 strcpy(buffer, "RLO OK\n");
                             }
                             else 
                                 strcpy(buffer, "RLO NOK\n");
 
                             /* error in sending */
-                            printf("rlo buffer: %s", buffer);
                             if (send(fd, buffer, strlen(buffer), 0) != strlen(buffer))
                                 perror("RLO send");
                             fflush(stdout);
                         }
                         else if (strcmp(command, "REQ") == 0) {
-
-                            printf("recebeu req\n");
                             
                             int reqResult = treatRequestInput(buffer);
                             //send error to user

@@ -75,25 +75,24 @@ int main(int argc, char* argv[]){
     Setting up UDP Client Socket
     ==========================*/
     udpClientSocket = socket(AF_INET, SOCK_DGRAM, 0);//UDP socket
-    if(udpClientSocket == -1)/*error*/exit(1);
+        if (udpClientSocket == -1)/*error*/exit(1);
     memset(&hints_c, 0, sizeof hints_c);
     hints_c.ai_family = AF_INET;//IPv4
     hints_c.ai_socktype = SOCK_DGRAM;//UDP socket
     errcode_c = getaddrinfo(ASIP, ASport, &hints_c ,&res_c);
-    if (errcode_c != 0)/*error*/exit(1);
+        if (errcode_c != 0)/*error*/exit(1);
     
     /*==========================
     Setting up UDP Server Socket
     ==========================*/
     udpServerSocket = socket(AF_INET, SOCK_DGRAM, 0);//UDP socket
-    if(udpServerSocket == -1)/*error*/exit(1);
+        if (udpServerSocket == -1)/*error*/exit(1);
     memset(&hints_s, 0, sizeof hints_s);
     hints_s.ai_family = AF_INET;//IPv4
     hints_s.ai_socktype = SOCK_DGRAM;//UDP socket
     hints_s.ai_flags = AI_PASSIVE;
     errcode_s = getaddrinfo(NULL, PDport, &hints_s, &res_s);
-    if (errcode_s != 0)/*error*/exit(1);
-
+        if (errcode_s != 0)/*error*/exit(1);
     if (bind(udpServerSocket, res_s->ai_addr, res_s->ai_addrlen) < 0) exit(1);
     
     while (1) {
@@ -107,10 +106,10 @@ int main(int argc, char* argv[]){
         ==========================*/
         maxfd = max(udpClientSocket, udpServerSocket);
         retval = select(maxfd + 1, &readfds, NULL, NULL, NULL);
-        if (retval <= 0) /*error*/ exit(1);
+            if (retval <= 0) /*error*/ exit(1);
         
         for (; retval; retval--) {
-            if(FD_ISSET(afd, &readfds)){
+            if (FD_ISSET(afd, &readfds)){
                 memset(msg, '\0', strlen(msg) * sizeof(char));
                 fgets(msg, SIZE, stdin);
                 /* msg is input written in standard input*/
@@ -134,8 +133,6 @@ int main(int argc, char* argv[]){
                     /*====================================================
                     Send message from stdin to the server
                     ====================================================*/
-                    /* msg = "REG 99999 password" */
-                    // char temp[SIZE];
                     char temp[SIZE];
                     strcpy(temp, msg);
                     char *token = strtok(temp, " ");
@@ -160,7 +157,7 @@ int main(int argc, char* argv[]){
                     strcat(strcat(msg, " "), fixedReg);      
 
                     n = sendto(udpClientSocket, msg, strlen(msg), 0, res_c->ai_addr, res_c->ai_addrlen);
-                    if (n == -1)/*error*/exit(1);     
+                        if (n == -1)/*error*/exit(1);     
                 }
             }
             if (FD_ISSET(udpClientSocket, &readfds)) {
@@ -169,7 +166,7 @@ int main(int argc, char* argv[]){
                 ====================================================*/
                 addrlen_c = sizeof(addr_c);
                 n = recvfrom(udpClientSocket, buffer, 128, 0, (struct sockaddr*) &addr_c, &addrlen_c);
-                if (n == -1)/*error*/exit(1);
+                    if (n == -1)/*error*/exit(1);
                 buffer[n] = '\0';
 
                 if (strcmp(buffer, "RRG OK\n") == 0) {
@@ -206,7 +203,7 @@ int main(int argc, char* argv[]){
                 ====================================================*/
                 addrlen_s = sizeof(addr_s);
                 n = recvfrom(udpServerSocket, buffer, SIZE, 0, (struct sockaddr*) &addr_s, &addrlen_s);
-                if (n == -1) /*error*/ perror("recv udpServerSocket");
+                    if (n == -1) /*error*/ perror("recv udpServerSocket");
                 buffer[n] = '\0';
 
                 /*separate command*/
@@ -253,14 +250,13 @@ int main(int argc, char* argv[]){
                         printf("VC=%s, %s %s", vc, op_name, filename);
                     }
 
-                    /*copy confirmation message to buffer
-                      to send to AS*/
+                    /*copy confirmation message to buffer to send to AS*/
                     strcpy(buffer, "RVC OK\n");
                 }
 
                 /*send confirmation message to AS*/
                 n = sendto(udpServerSocket, buffer, strlen(buffer), 0, (struct sockaddr*) &addr_s, addrlen_s);
-                if (n == -1) /*error*/ exit(1);   
+                    if (n == -1) /*error*/ exit(1);   
 
                 memset(command, '\0', strlen(command) * sizeof(char));
                 memset(vc, '\0', strlen(vc) * sizeof(char));
