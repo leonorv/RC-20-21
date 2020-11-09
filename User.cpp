@@ -16,8 +16,13 @@ using namespace std;
 #define max(A,B)((A)>=(B)?(A):(B))
 
 extern int errno;
-
+int tcpSocket_AS, tcpSocket_FS, errcode, rID, vc, tid, afd = 0;
+struct addrinfo hints_AS, hints_FS, *res_AS, *res_FS;
+struct sockaddr_in addr_AS, addr_FS;
+socklen_t addrlen_AS, addrlen_FS;
 char ASIP[SIZE], ASport[SIZE] = "58030", FSIP[SIZE], FSport[SIZE] = "59030";
+fd_set readfds;
+int maxfd, retval;
 
 void processInput(int argc, char* const argv[]) {
     if (argc % 2 != 1) {
@@ -48,14 +53,29 @@ void processInput(int argc, char* const argv[]) {
     }
 }
 
+int setTCPClientFS() {
+    printf("fsport: %s, fsip: %s\n", FSport, FSIP); fflush(stdout);
+    tcpSocket_FS = socket(AF_INET, SOCK_STREAM, 0);
+    if (tcpSocket_FS == -1) { perror("socket FS"); return 0; }
+    memset(&hints_FS, 0, sizeof(hints_FS));
+    hints_FS.ai_family = AF_INET;
+    hints_FS.ai_socktype = SOCK_STREAM;
+    printf("before addrinfo\n"); fflush(stdout);
+    errcode = getaddrinfo(FSIP, FSport, &hints_FS, &res_FS);  
+    if (errcode != 0) { perror("FS addr info"); return 0; }
+    printf("after addrinfo\n"); fflush(stdout);
+    int n = connect(tcpSocket_FS, res_FS->ai_addr, res_FS->ai_addrlen);
+    if (n == -1) { perror("socket FS"); return 0; }
+    printf("before set\n"); fflush(stdout);
+    FD_SET(tcpSocket_FS, &readfds);
+    printf("setted\n"); fflush(stdout);
+    maxfd = max(maxfd, tcpSocket_FS); 
+    return 1;
+}
+
 int main(int argc, char* const argv[]) {
-    int tcpSocket_AS, tcpSocket_FS, errcode, rID, vc, tid, afd = 0;
-    fd_set readfds;
-    int maxfd, retval;
+
     ssize_t n, nbytes, nleft;
-    socklen_t addrlen_AS, addrlen_FS;
-    struct addrinfo hints_AS, hints_FS, *res_AS, *res_FS;
-    struct sockaddr_in addr_AS, addr_FS;
     char *ptr, buffer[SIZE], msg[SIZE], command[SIZE], fop[SIZE], filename[SIZE], uid[SIZE], uidTemp[SIZE];
 
     if (gethostname(FSIP, SIZE) == -1)
@@ -83,15 +103,9 @@ int main(int argc, char* const argv[]) {
     n = connect(tcpSocket_AS, res_AS->ai_addr, res_AS->ai_addrlen);
         if (n == -1) { perror("connect AS"); exit(1); }
 
-    tcpSocket_FS = socket(AF_INET, SOCK_STREAM, 0);
-        if (tcpSocket_FS == -1) { perror("socket FS"); exit(1); }
-    memset(&hints_FS, 0, sizeof(hints_FS));
-    hints_FS.ai_family = AF_INET;
-    hints_FS.ai_socktype = SOCK_STREAM;
-    errcode = getaddrinfo(FSIP, FSport, &hints_FS, &res_FS);  
-        if (errcode != 0) { perror("FS addr info"); exit(1); }
-    n = connect(tcpSocket_FS, res_FS->ai_addr, res_FS->ai_addrlen);
-        if (n == -1) { perror("socket FS"); exit(1); }
+    //setTCPClientFS();
+
+    
 
     while (1) {
         FD_ZERO(&readfds);
@@ -107,6 +121,7 @@ int main(int argc, char* const argv[]) {
         if (retval <= 0) { perror("select"); exit(1); }
 
         for (; retval; retval--) {
+            memset(buffer, '\0', strlen(buffer) * sizeof(char));
             if (FD_ISSET(afd, &readfds)) {
 
                 memset(msg, '\0', strlen(msg) * sizeof(char));
@@ -170,9 +185,15 @@ int main(int argc, char* const argv[]) {
                         if (n <= 0) { perror("tcp write"); exit(1); }
 
                     }
-                    else if (strcmp(command, "upload") == 0 || strcmp(command, "retrieve") == 0 || strcmp(command, "delete") == 0 || strcmp(command, "remove") == 0 || strcmp(command, "list") == 0) {
+                    else if (strcmp(command, "upload") == 0 || strcmp(command, "retrieve") == 0 || strcmp(command, "delete") == 0 || strcmp(command, "remove\n") == 0 || strcmp(command, "remove\n") == 0 || strcmp(command, "list\n") == 0) {
+                        printf("oiii\n"); fflush(stdout);
+                        if (!setTCPClientFS()) {
+                            perror("setup FS socket");
+                        }
                         if (strcmp(command, "upload") == 0) {
-                        
+                            /* UPL UID TID Fname Fsize data */
+                            // processUpload(msg);
+
                         }
                         else if (strcmp(command, "retrieve") == 0) {
                         
@@ -180,14 +201,21 @@ int main(int argc, char* const argv[]) {
                         else if (strcmp(command, "delete") == 0) {
                         
                         }
-                        else if (strcmp(command, "remove") == 0) {
+                        else if (strcmp(command, "remove\n") == 0 || strcmp(command, "x\n") == 0) {
                         
                         }
-                        else if (strcmp(command, "list") == 0) {
+                        else if (strcmp(command, "list\n") == 0) {
+                            /* LST UID TID */
+                            sprintf(ptr, "LST %s %d\n", uid, tid);
+                            printf("ptr: %s\n", ptr);
+
                         
                         }
                         nbytes = strlen(ptr);
                         nleft = nbytes;
+
+                        n = write(tcpSocket_FS, ptr, nleft);
+                        if (n <= 0) { perror("tcp write"); exit(1); }
                     }
                     else {
                         /* continue if incorrect command */
@@ -234,16 +262,18 @@ int main(int argc, char* const argv[]) {
                         printf("Request accepted\n"); 
                 }
                 else if (strcmp(command, "RAU") == 0) {
+                    int tidTemp;
                     token = strtok(NULL, " ");
-                    tid = atoi(token);
-                    if (tid == 0) {
-                        printf("Authentication failed! (TID=%d)\n", tid); 
+                    tidTemp = atoi(token);
+                    if (tidTemp == 0) {
+                        printf("Authentication failed!\n"); 
                     }
-                    else if (tid != 0) {
-                        printf("Authenticated! (TID=%d)\n", tid); 
+                    else if (tidTemp != 0) {
+                        tid = tidTemp;
+                        printf("Authenticated! (TID=%d)\n", tidTemp); 
                     }
                 }
-                memset(buffer, '\0', SIZE * sizeof(char));
+                // memset(buffer, '\0', SIZE * sizeof(char));
                 free(ptr);
             }
             else if (FD_ISSET(tcpSocket_FS, &readfds)) {
@@ -251,13 +281,14 @@ int main(int argc, char* const argv[]) {
                 char *token;
 
                 n = read(tcpSocket_FS, buffer, SIZE);
+                printf("len do buffer: %s\n", buffer);
                 if (n == -1)  exit(1);
                 buffer[n] = '\0';
 
                 printf("recebeu do fs: %s\n", buffer);
 
                 token = strtok(buffer, " ");
-                strcpy(command, token);
+                //strcpy(command, token);
 
                 if (strcmp(command, "RLS") == 0) {
                  
@@ -274,6 +305,8 @@ int main(int argc, char* const argv[]) {
                 else if (strcmp(command, "RRM") == 0) {
                  
                 }
+                close(tcpSocket_FS);
+                tcpSocket_FS = -1;
             }
             memset(buffer, '\0', SIZE * sizeof(char));
         }
