@@ -46,23 +46,28 @@ void processInput(int argc, char* const argv[]) {
 }
 
 int main(int argc, char* argv[]) {
+    const int maxUsers = 5;
     int udpClientSocket, tcpServerSocket;
     fd_set readfds;
     int maxfd, retval;
     struct addrinfo hints_udp, hints_tcp, *res_udp, *res_tcp;
     int fd, newfd, errcode;
-    struct sockaddr_in addr_udp, addr_tcp;
-    socklen_t addrlen_udp, addrlen_tcp;
+    struct sockaddr_in addr_udp, addr_tcp, addr;
+    socklen_t addrlen_udp, addrlen_tcp, addrlen;
     ssize_t n, nread, nw;
+    int fdClients[maxUsers];
     char *ptr, buffer[SIZE], check[3], command[4], password[8], uid[6]="", filename[50], vc[5], op_name[16], tid[5], fop[3];
 
     if (gethostname(ASIP ,SIZE) == -1)
+        fprintf(stderr,"error: %s\n",strerror(errno));
+    
+    if (gethostname(FSIP ,SIZE) == -1)
         fprintf(stderr,"error: %s\n",strerror(errno));
 
     /*==========================
     Setting up UDP Server Socket
     ==========================*/
-    udpClientSocket = socket(AF_INET, SOCK_DGRAM, 0);//TCP socket
+    udpClientSocket = socket(AF_INET, SOCK_DGRAM, 0);//UDP socket
     if(udpClientSocket == -1)/*error*/exit(1);
 
     memset(&hints_udp, 0, sizeof hints_udp);
@@ -81,25 +86,49 @@ int main(int argc, char* argv[]) {
     hints_tcp.ai_family = AF_INET;//IPv4
     hints_tcp.ai_socktype = SOCK_STREAM;//TCP socket
     hints_tcp.ai_flags = AI_PASSIVE;
-    errcode = getaddrinfo(NULL, ASport, &hints_tcp, &res_tcp);
+    errcode = getaddrinfo(NULL, FSport, &hints_tcp, &res_tcp);
     if (errcode != 0)/*error*/exit(1);
     if (bind(tcpServerSocket, res_tcp->ai_addr, res_tcp->ai_addrlen) < 0) exit(1);
+
+    /* Initialize TCP babies fds */
+    for (int i = 0; i < maxUsers; i++) {   
+        fdClients[i] = 0;
+    } 
 
     /*==========================
         process standard input
     ==========================*/
     processInput(argc, argv);
 
+    if (listen(tcpServerSocket, maxUsers) == -1)
+        /*error*/ perror("listen tcpserversocket");
+
     while (1){
         FD_ZERO(&readfds);
         FD_SET(udpClientSocket, &readfds);
         FD_SET(tcpServerSocket, &readfds);
+        maxfd = tcpServerSocket;
 
-        if(listen(tcpServerSocket,5)==-1)/*error*/exit(1);
+        /*==========================
+        Create child sockets
+        ==========================*/
+        for (int i = 0 ; i < maxUsers ; i++) {   
+            //socket descriptor  
+            fd = fdClients[i];   
+                 
+            //if valid socket descriptor then add to read list  
+            if(fd > 0)   
+                FD_SET(fd , &readfds);   
+                 
+            //highest file descriptor number, need it for the select function  
+            if(fd > maxfd)   
+                maxfd = fd;   
+        }
+        
         /*==========================
         Pick the active file descriptor(s)
         ==========================*/
-        maxfd = max(tcpServerSocket, udpClientSocket);
+        maxfd = max(maxfd, udpClientSocket);
         retval = select(maxfd + 1, &readfds, NULL, NULL, NULL);
         if (retval <= 0)/*error*/exit(1);
         
@@ -158,53 +187,70 @@ int main(int argc, char* argv[]) {
             }
             else if(FD_ISSET(tcpServerSocket, &readfds))
             {
-                addrlen_tcp=sizeof(addr_tcp);
-                if ((newfd=accept(fd,(struct sockaddr*)&addr_tcp,&addrlen_tcp))==-1)/*error*/exit(1);
-                while((n=read(newfd,buffer,SIZE))!=0) {
-                if (n==-1)/*error*/exit(1);
+                addrlen_tcp = sizeof(addr_tcp);
+                if ((newfd = accept(tcpServerSocket, (struct sockaddr*)&addr_tcp, &addrlen_tcp)) == -1) { perror("accept tcp server socket"); exit(1); }
 
-                char *token = strtok(buffer, " ");
-                strcpy(command, token);
+                //add new socket to array of sockets  
+                for (int i = 0; i < maxUsers; i++) {   
+                    //if position is empty  
+                    if(fdClients[i] == 0 ) {  
+                        fdClients[i] = newfd;   
+                        break;   
+                    }   
+                }
+            }
+            for (int i = 0; i < maxUsers; i++) {   
+                fd = fdClients[i];  
 
-                if (strcmp(command, "LST") == 0) {
-                    token = strtok(NULL, " ");
-                    strcpy(check, token);
-                }
-                if (strcmp(command, "RTV") == 0) {
-                    token = strtok(NULL, " ");
-                    strcpy(check, token);
-                }
-                if (strcmp(command, "UPL") == 0) {
-                    token = strtok(NULL, " ");
-                    strcpy(check, token);
-                }
-                if (strcmp(command, "DEL") == 0) {
-                    token = strtok(NULL, " ");
-                    strcpy(check, token);
-                }
-                if (strcmp(command, "REM") == 0) {
-                    token = strtok(NULL, " ");
-                    strcpy(check, token);
-                }
-                else
-                {
-                    printf("ERR\n");
-                }  
+                if (FD_ISSET(fd, &readfds)) { 
 
-                strcpy(buffer,"VLD");
+                    int n = read(fd, buffer, SIZE);
 
-                /*send confirmation message to AS*/
-                n = sendto(udpClientSocket, buffer, strlen(buffer), 0, (struct sockaddr*) &addr_udp, addrlen_udp);
-                if (n == -1)/*error*/exit(1);   
-                memset(buffer, '\0', SIZE * sizeof(char));
+                    if (n == 0) {
+                        getpeername(fd, (struct sockaddr*)&addr, (socklen_t*)&addrlen);
 
-                    ptr = &buffer[0];
-                    while (n>0) {
-                        if ((nw=write(newfd,ptr,n))<=0)/*error*/exit(1);
-                        n-=nw; 
-                        ptr+=nw;
-                    } 
-                close(newfd);
+                        //Close the socket and mark as 0 in list for reuse
+                        close(fd);
+                        fdClients[i] = 0;
+                        // /* error */ exit(1);
+                    }
+                    else if (n == -1) { perror("fdclients read"); exit(1); }
+                    else {
+                        char *token = strtok(buffer, " ");
+                        strcpy(command, token);
+
+                        if (strcmp(command, "LST") == 0) {
+                            token = strtok(NULL, " ");
+                            strcpy(check, token);
+                        }
+                        else if (strcmp(command, "RTV") == 0) {
+                            token = strtok(NULL, " ");
+                            strcpy(check, token);
+                        }
+                        else if (strcmp(command, "UPL") == 0) {
+                            token = strtok(NULL, " ");
+                            strcpy(check, token);
+                        }
+                        else if (strcmp(command, "DEL") == 0) {
+                            token = strtok(NULL, " ");
+                            strcpy(check, token);
+                        }
+                        else if (strcmp(command, "REM") == 0) {
+                            token = strtok(NULL, " ");
+                            strcpy(check, token);
+                        }
+                        else
+                        {
+                            printf("ERR\n");
+                        }  
+                        
+                        strcpy(buffer,"VLD");
+
+                        /*send confirmation message to AS*/
+                        n = sendto(udpClientSocket, buffer, strlen(buffer), 0, (struct sockaddr*) &addr_udp, addrlen_udp);
+                        if (n == -1)/*error*/exit(1);   
+                    }
+                    memset(buffer, '\0', SIZE * sizeof(char));    
                 }
             }
         }

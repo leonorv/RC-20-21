@@ -19,7 +19,7 @@ using namespace std;
 
 extern int errno;
 
-char ASIP[SIZE], ASport[SIZE] = "58030", FSIP[SIZE] = "tejo.tecnico.ulisboa.pt", FSport[SIZE] = "59000";
+char ASIP[SIZE], ASport[SIZE] = "58030", FSIP[SIZE] = "tejo.tecnico.ulisboa.pt", FSport[SIZE] = "59030";
 
 void processInput(int argc, char* const argv[]) {
     if (argc % 2 != 1) {

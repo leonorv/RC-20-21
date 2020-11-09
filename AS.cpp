@@ -30,17 +30,17 @@ using namespace std;
 
 extern int errno;
 
-char ASport[SIZE] = "58030", ASIP[SIZE], PDport[SIZE], PDIP[SIZE] , FSport[SIZE], FSIP[SIZE];
+char ASport[SIZE] = "58030", ASIP[SIZE], PDport[SIZE] = "57030", PDIP[SIZE] , FSport[SIZE] = "59030", FSIP[SIZE];
 
 const int maxUsers = 5;
 FILE *fptr;
-int udpServerSocket, tcpServerSocket, udpClientSocket;
+int udpServerSocket, tcpServerSocket, udpClientSocket, udpServerSocket_FS;
 fd_set readfds;
 int maxfd, retval;
 int fd, newfd, errcode;
 struct addrinfo hints_uc, hints_us, hints_ts, *res_uc, *res_ts, *res_us;
-struct sockaddr_in addr_uc, addr_us, addr_ts, addr;
-socklen_t addrlen_uc, addrlen_us, addrlen_ts, addrlen;
+struct sockaddr_in addr_uc, addr_us, addr_ts, addr_sfs, addr;
+socklen_t addrlen_uc, addrlen_us, addrlen_ts, addrlen_sfs, addrlen;
 ssize_t n, nread, nw;
 char buffer[SIZE], command[SIZE], password[SIZE], uid[SIZE], *ptr, rid[SIZE], fop;
 int connectedUsers = 0;
@@ -103,6 +103,8 @@ void setupTCPServerSocket() {
     if (errcode != 0) { perror("TSS get addr info"); exit(1); }
     if (bind(tcpServerSocket, res_ts->ai_addr, res_ts->ai_addrlen) < 0) { perror("bind tcp server socket"); exit(1); }
 }
+
+
 
 int checkRegisterInput(char buffer[SIZE]) {    
     char filename[SIZE], password[SIZE], uid[SIZE], pdip[SIZE], pdport[SIZE], driName[SIZE];
@@ -252,26 +254,6 @@ int treatRequestInput(char buffer[SIZE]) {
 
     sscanf(buffer, "REQ %[0-9] %[0-9] %s %s\n", uid, rid, fop, fname);
 
-    /*
-    User manda REQ
-    AS verifica que fop esta certo - EFOP
-    AS verifica que log existe - ELOG
-    AS verifica que user existe - EUSER
-    AS nao consegue enviar mensagem para PD - EPD
-    */
-//    printf("buffer: %s, uid: %s, rid: %s, fop: %s, fname: %s\n", buffer, uid, rid, fop, fname);
-   
-    // if (uid == NULL || rid == NULL || fop == NULL || fname == NULL)
-    //     return ERR;
-
-    // if ((strcmp(fop, "U") == 0 || strcmp(fop, "D") == 0 || strcmp(fop, "L") == 0) && fname == NULL)
-    //     return ERR;
-
-    // if ((strcmp(fop, "R") == 0 || strcmp(fop, "X") == 0) && fname != NULL)
-    //     return ERR;
-
-    // printf("len rid %lu\n", strlen(rid));
-
     if (strlen(rid) == 1) {
         /* if rid is empty, the user isn't logged in*/
         return ELOG;
@@ -398,7 +380,6 @@ int main(int argc, char* argv[]) {
         FD_ZERO(&readfds);
         FD_SET(udpServerSocket, &readfds);
         FD_SET(tcpServerSocket, &readfds);
-        //--------------------------------------------------------------------------------------------------
         FD_SET(udpClientSocket, &readfds);
         maxfd = tcpServerSocket;
 
