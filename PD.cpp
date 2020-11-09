@@ -190,8 +190,13 @@ int main(int argc, char* argv[]){
                 else if (strcmp(buffer, "RUN NOK\n") == 0) {
                     printf("Unregistration unsuccessful\n");  
                 }
-                else 
-                    perror("udpclientsocket bad response from AS");
+                else {
+                    freeaddrinfo(res_c);
+                    freeaddrinfo(res_s);
+                    close(udpClientSocket);
+                    close(udpServerSocket);
+                    exit(1);
+                }
                 /* reset buffer */
                 memset(buffer, '\0', SIZE * sizeof(char));
             }

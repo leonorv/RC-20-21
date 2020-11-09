@@ -82,26 +82,26 @@ int setupUDPClientSocket(char PDIP[SIZE], char PDport[SIZE]) {
 
 void setupUDPServerSocket() {
     udpServerSocket = socket(AF_INET, SOCK_DGRAM, 0); //UDP socket
-    if(udpServerSocket == -1) /*error*/exit(1);
+    if(udpServerSocket == -1)  { perror("udp server socket"); exit(1); }
     memset(&hints_us, 0, sizeof hints_us);
     hints_us.ai_family = AF_INET; //IPv4
     hints_us.ai_socktype = SOCK_DGRAM; //UDP socket
     hints_us.ai_flags = AI_PASSIVE;
     errcode = getaddrinfo(NULL, ASport, &hints_us, &res_us);
-    if (errcode != 0)/*error*/exit(1);
-    if (bind(udpServerSocket, res_us->ai_addr, res_us->ai_addrlen) < 0) exit(1);
+    if (errcode != 0) { perror("USS get addr info"); exit(1); }
+    if (bind(udpServerSocket, res_us->ai_addr, res_us->ai_addrlen) < 0)  { perror("bind udp server socket"); exit(1); }
 }
 
 void setupTCPServerSocket() {
     tcpServerSocket = socket(AF_INET, SOCK_STREAM, 0);//TCP socket
-    if(tcpServerSocket == -1)/*error*/exit(1);
+    if(tcpServerSocket == -1) { perror("tcp server socket"); exit(1); }
     memset(&hints_ts, 0, sizeof hints_ts);
     hints_ts.ai_family = AF_INET;//IPv4
     hints_ts.ai_socktype = SOCK_STREAM;//TCP socket
     hints_ts.ai_flags = AI_PASSIVE;
     errcode = getaddrinfo(NULL, ASport, &hints_ts, &res_ts);
-    if (errcode != 0)/*error*/exit(1);
-    if (bind(tcpServerSocket, res_ts->ai_addr, res_ts->ai_addrlen) < 0) exit(1);
+    if (errcode != 0) { perror("TSS get addr info"); exit(1); }
+    if (bind(tcpServerSocket, res_ts->ai_addr, res_ts->ai_addrlen) < 0) { perror("bind tcp server socket"); exit(1); }
 }
 
 int checkRegisterInput(char buffer[SIZE]) {    
@@ -424,7 +424,7 @@ int main(int argc, char* argv[]) {
         maxfd = max2(udpServerSocket, maxfd);
         maxfd = max2(maxfd, udpClientSocket);
         retval = select(maxfd + 1, &readfds, NULL, NULL, NULL);
-        if (retval <= 0)/*error*/exit(1);
+        if (retval <= 0) { perror("select retval"); exit(1); }
         
         for (; retval; retval--) {
             //-------------------------------------------------------------------------------------
@@ -448,8 +448,6 @@ int main(int argc, char* argv[]) {
                         strcpy(buffer, "RRQ NOK\n"); ////// erros!
                     }
                 }
-                // int n = sendto(udpClientSocket, buffer, strlen(buffer), 0, res_uc->ai_addr, res_uc->ai_addrlen);
-                // if (n == -1)/*error*/exit(1); 
                 memset(command, '\0', SIZE * sizeof(char));
                 memset(buffer, '\0', SIZE * sizeof(char));
             }
@@ -484,7 +482,7 @@ int main(int argc, char* argv[]) {
                 
                 /* sends ok or not ok to pd */
                 n = sendto(udpServerSocket, buffer, n, 0, (struct sockaddr*) &addr_us, addrlen_us);
-                if (n == -1)/*error*/exit(1); 
+                if (n == -1) { perror("sendto udp server socket"); exit(1); }
                 memset(command, '\0', SIZE * sizeof(char));
                 memset(buffer, '\0', SIZE * sizeof(char));
             }
@@ -495,7 +493,7 @@ int main(int argc, char* argv[]) {
                         USER -> AUT UID RID VC
                 ===========================================*/
                 addrlen_ts = sizeof(addr_ts);
-                if ((newfd = accept(tcpServerSocket, (struct sockaddr*)&addr_ts, &addrlen_ts)) == -1) /*error*/ exit(1);
+                if ((newfd = accept(tcpServerSocket, (struct sockaddr*)&addr_ts, &addrlen_ts)) == -1) { perror("accept tcp server socket"); exit(1); }
 
                 //add new socket to array of sockets  
                 for (int i = 0; i < maxUsers; i++) {   
@@ -506,83 +504,89 @@ int main(int argc, char* argv[]) {
                     }   
                 } 
             }
-                for (int i = 0; i < maxUsers; i++) {   
-                    fd = fdClients[i];   
-                    if (FD_ISSET(fd, &readfds)) {  
-                        
-                        int n = read(fd, buffer, SIZE);
-                        if (n == 0) {
+            for (int i = 0; i < maxUsers; i++) {   
+                fd = fdClients[i];   
+                if (FD_ISSET(fd, &readfds)) {  
+                    
+                    int n = read(fd, buffer, SIZE);
+                    if (n == 0) {
+                        getpeername(fd, (struct sockaddr*)&addr, (socklen_t*)&addrlen);
+
+                        //Close the socket and mark as 0 in list for reuse
+                        close(fd);
+                        fdClients[i] = 0;
+                        // /* error */ exit(1);
+                    }
+                    else if (n == -1) { perror("fdclients read"); exit(1); }
+                    else {
+                            /* get command code */
+                        strncpy(command, buffer, 3);
+                        printf(" buffer: %s", buffer);
+
+                        if (strcmp(command, "LOG") == 0) {
+                            printf("ANTES DAS CENAS\n"); fflush(stdout);
+                            if (checkLoginInput(buffer)) {
+                                printf("chegou ao rlo\n");
+                                strcpy(buffer, "RLO OK\n");
+                            }
+                            else 
+                                strcpy(buffer, "RLO NOK\n");
+
+                            /* error in sending */
+                            printf("rlo buffer: %s", buffer);
+                            if (send(fd, buffer, strlen(buffer), 0) != strlen(buffer))
+                                perror("RLO send");
+                            fflush(stdout);
+                        }
+                        else if (strcmp(command, "REQ") == 0) {
+
+                            printf("recebeu req\n");
                             
-                            getpeername(fd, (struct sockaddr*)&addr, (socklen_t*)&addrlen);
-
-                            //Close the socket and mark as 0 in list for reuse
-                            close(fd);
-                            fdClients[i] = 0;
-                            /* error */ exit(1);
+                            int reqResult = treatRequestInput(buffer);
+                            //send error to user
+                            strcpy(buffer, "RRQ ");
+                            if (reqResult == ERR)
+                                strcat(buffer, "ERR\n");
+                            else if (reqResult == ELOG)
+                                strcat(buffer, "ELOG\n");                                    
+                            else if (reqResult == EUSER)
+                                strcat(buffer, "EUSER\n");
+                            else if (reqResult == EFOP)
+                                strcat(buffer, "EFOP\n");
+                            else if (reqResult == EPD)
+                                strcat(buffer, "EPD\n");
+                            else {
+                                strcat(buffer, "OK\n");
+                            }
+                            
+                            if (send(fd, buffer, strlen(buffer), 0) != strlen(buffer))
+                                perror("RRQ send"); 
+                            
                         }
-                        else if (n == -1) 
-                            /* error */ exit(1);
-                        else {
-                             /* get command code */
-                            strncpy(command, buffer, 3);
+                        else if (strcmp(command, "AUT") == 0) {
+                            if (checkAuthenticationInput(buffer)) {
 
-                            if (strcmp(command, "LOG") == 0) {
-                                if (checkLoginInput(buffer)) {
-                                    strcpy(buffer, "RLO OK\n");
-                                }
-                                else 
-                                    strcpy(buffer, "RLO NOK\n");
+                                int temp = rand() % 8000 + 1000;
+                                string s_tid = to_string(temp);
 
-                                /* error in sending */
-                                if (send(fd, buffer, strlen(buffer), 0) != strlen(buffer))
-                                    perror("RLO send");
+                                char tid[6];
+                                strcpy(tid, s_tid.c_str());
+
+                                strcpy(buffer, "RAU");
+                                strcat(buffer, " ");
+                                strcat(buffer, tid);
+                                strcat(buffer, "\n");
                             }
-                            else if (strcmp(command, "REQ") == 0) {
-                                
-                                int reqResult = treatRequestInput(buffer);
-                                //send error to user
-                                strcpy(buffer, "RRQ ");
-                                if (reqResult == ERR)
-                                    strcat(buffer, "ERR\n");
-                                else if (reqResult == ELOG)
-                                    strcat(buffer, "ELOG\n");                                    
-                                else if (reqResult == EUSER)
-                                    strcat(buffer, "EUSER\n");
-                                else if (reqResult == EFOP)
-                                    strcat(buffer, "EFOP\n");
-                                else if (reqResult == EPD)
-                                    strcat(buffer, "EPD\n");
-                                else {
-                                    strcat(buffer, "OK\n");
-                                }
-                                
-                                if (send(fd, buffer, strlen(buffer), 0) != strlen(buffer))
-                                    perror("RRQ send"); 
-                                
-                            }
-                            else if (strcmp(command, "AUT") == 0) {
-                                if (checkAuthenticationInput(buffer)) {
-
-                                    int temp = rand() % 8000 + 1000;
-                                    string s_tid = to_string(temp);
-
-                                    char tid[6];
-                                    strcpy(tid, s_tid.c_str());
-
-                                    strcpy(buffer, "RAU");
-                                    strcat(buffer, " ");
-                                    strcat(buffer, tid);
-                                    strcat(buffer, "\n");
-                                }
-                                else 
-                                    strcpy(buffer, "RAU 0\n");
-                                /* error in sending */
-                                if (send(fd, buffer, strlen(buffer), 0) != strlen(buffer))
-                                    perror("RLO send");
-                            }
+                            else 
+                                strcpy(buffer, "RAU 0\n");
+                            /* error in sending */
+                            if (send(fd, buffer, strlen(buffer), 0) != strlen(buffer))
+                                perror("RAU send");
                         }
-                    }   
-                } 
-            }
+                    }
+                    memset(buffer, '\0', strlen(buffer) * sizeof(char));
+                }   
+            } 
         }
     }
+}
