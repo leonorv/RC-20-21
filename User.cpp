@@ -68,11 +68,13 @@ void treatRLS() {
 
     FILE* tempFile;
     tempFile = fopen("temp.txt", "rw");    
+    if (!tempFile)
+        perror("fopen");
     int size = 0;
 
     int n = read(tcpSocket_FS, buffer, SIZE);
-    printf("buffer: %s\n", buffer);
     while (n != 0) {
+        printf("buffer: %s\n", buffer);
         size += n;
         fwrite(buffer, sizeof(char), sizeof(buffer), tempFile);
         memset(buffer, '\0', n * sizeof(char));
@@ -80,15 +82,11 @@ void treatRLS() {
     }
     fwrite("\0", sizeof(char), sizeof(char), tempFile);
     
-    printf("size: %d\n",size);
-
     char fileBuffer[size + 1];
     
     if (!fgets(fileBuffer, (size)*sizeof(char), tempFile)) perror("oops");
-    printf("filebuffer: %s\n", fileBuffer);
     token = strtok(fileBuffer, " "); //token has n_files or error
 
-    printf("token: %s\nfilebuff: %s\n", token, fileBuffer);
 
     if (strcmp(token, "EOF\n") == 0) {
         printf("No files to list\n");
@@ -104,7 +102,6 @@ void treatRLS() {
     }
 
     n_files = atoi(token);
-
 
     printf("%d files:\n", n_files);
     
@@ -124,60 +121,59 @@ void treatRLS() {
 void treatRRT() {
     //RRT status [Fsize data]
     char command[SIZE];
-    char bufferTemp[SIZE];
-    char fname[SIZE];
-    char data[SIZE];
-    char path[SIZE];
-    int n_files, fsize;
-    strcpy(bufferTemp, buffer);
-
-    printf("buffer : %s\n", buffer);
-    
-    char *token = strtok(buffer, " ");
-    strcpy(command, token);
-
-    token = strtok(NULL, " "); //token has status
-
-    if (strcmp(token, "EOF\n") == 0) {
-        printf("File not available\n");
-        return;
-    }
-    else if (strcmp(token, "NOK\n") == 0) {
-        printf("No content available for this user\n");
-        return;
-    }
-    else if (strcmp(token, "INV\n") == 0) {
-        printf("AS validation error\n");
-        return;
-    }
-    else if (strcmp(token, "ERR\n") == 0) {
-        printf("Invalid request\n");
-        return;
-    }
-
-
-    printf("token status: %s\n",token);
-    token = strtok(NULL, " "); //token has filesize
-    fsize = atoi(token);
-    printf("token with filesize: %s\n",token);
-    token = strtok(NULL, " "); //token has data
-    strcpy(data, token);
-    printf("token with data: %s\n",token);
-    printf("data: %s\n",data);
-
-    //create file with correct name
-
-    printf("filename: %s\n", filename);
-
-    
-    strcpy(path, "files/");
+    char buffer[SIZE];
+    char fsize[10];
+    char path[SIZE] = "files/";
+    int size;
     strcat(path, filename);
 
-    ofstream retFile; 
-    retFile.open(path);
-    retFile << data;
-    retFile.close();
 
+    //RRT status [Fsize data]
+    // char bufferTemp[4];
+    int n = read(tcpSocket_FS, buffer, 3);
+    if (strcmp(buffer, "OK ") != 0) { //if status != OK
+        if (strcmp(buffer, "EOF") == 0) {
+        printf("File not available\n");
+            return;
+        }
+        else if (strcmp(buffer, "NOK") == 0) {
+            printf("No content available for this user\n");
+            return;
+        }
+        else if (strcmp(buffer, "INV") == 0) {
+            printf("AS validation error\n");
+            return;
+        }
+        else if (strcmp(buffer, "ERR") == 0) {
+            printf("Invalid request\n");
+            return;
+        }
+
+    }
+    memset(buffer, '\0', sizeof(char) * strlen(buffer));
+    n = read(tcpSocket_FS, buffer, 1);
+    while (strcmp(buffer, " ") != 0) {
+        strcpy(fsize, buffer);
+        memset(buffer, '\0', sizeof(char) * strlen(buffer));
+        n = read(tcpSocket_FS, buffer, 1);
+    }
+
+    size = atoi(fsize);
+
+    int totalRead = 0;
+    memset(buffer, '\0', sizeof(char) * strlen(buffer));
+    FILE *f;
+    f = fopen(path, "w");
+    n = read(tcpSocket_FS, buffer, SIZE);
+    while (totalRead < size) {
+        totalRead += n;
+        fwrite(buffer, sizeof(char), sizeof(buffer), f);
+        memset(buffer, '\0', sizeof(char) * strlen(buffer));
+        n = read(tcpSocket_FS, buffer, SIZE);
+
+    }
+
+    fclose(f);
 
     printf("File name: %s\n", filename);
     printf("Path: %s\n", path);
@@ -329,7 +325,6 @@ int main(int argc, char* const argv[]) {
                         else if (strcmp(command, "retrieve") == 0 || strcmp(command, "r") == 0) {
                             //RTV UID TID Fname
                             sprintf(ptr, "RTV %s %d %s\n", uid, tid, filenameTemp);
-                            printf("chegou ao retrieve\nfilenametemp: %s\n", filenameTemp);
                             // printf()
                             
                         
@@ -349,7 +344,6 @@ int main(int argc, char* const argv[]) {
                         nbytes = strlen(ptr);
                         nleft = nbytes;
 
-                        printf("sending to fs: %s\n", ptr);
 
                         n = write(tcpSocket_FS, ptr, nleft);
                         if (n <= 0) { perror("tcp write"); exit(1); }
@@ -433,7 +427,6 @@ int main(int argc, char* const argv[]) {
 
                 int n = read(tcpSocket_FS, command, 4);
 
-                printf("command: %s\n", command);
 
                 //strcpy(bufferTemp, buffer);
                 //token = strtok(buffer, " ");
@@ -451,10 +444,9 @@ int main(int argc, char* const argv[]) {
                // printf("final buffer: %s\n", buffer); fflush(stdout);
 
                 if (strcmp(command, "RLS \n") == 0) {
-                    printf("entrou!!\n");
                     treatRLS();
                 }
-                else if (strcmp(command, "RRT ") == 0) {
+                else if (strcmp(command, "RRT \n") == 0) {
                     //fwrite(fileBuffer, buffer);
                     treatRRT();
                  
