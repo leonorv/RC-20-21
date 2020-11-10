@@ -383,7 +383,7 @@ void treatRVCInput(char buffer[SIZE]) { //as received rvc from pd and he's going
     indexFile.open(dirName);
     getline(indexFile, index);
     indexFile.close();
-    //remove(dirName);
+    remove(dirName);
     // index
     fdIndex = atoi(index.c_str());
 
