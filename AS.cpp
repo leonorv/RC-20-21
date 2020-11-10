@@ -242,7 +242,7 @@ int checkLoginInput(char buffer[SIZE]) {
         char tempfileName[SIZE];
         strcpy(tempfileName, dirName);
         strcat(tempfileName, "/login.txt");
-        ofstream userLogReg; 
+        ofstream userLogReg;
         userLogReg.open(tempfileName);
         userLogReg.close();
 
@@ -537,15 +537,21 @@ int main(int argc, char* argv[]) {
             for (int i = 0; i < maxUsers; i++) {   
                 fd = fdClients[i];   
                 if (FD_ISSET(fd, &readfds)) {  
+                    char readBuffer[SIZE];
                     
-                    int n = read(fd, buffer, SIZE);
+                    int n = read(fd, readBuffer, SIZE);
+                    while (n != 0) {
+                        strcat(buffer, readBuffer);
+                        memset(readBuffer, '\0', strlen(readBuffer) * sizeof(char));
+                        n = read(fd, readBuffer, SIZE);
+                    }
+
                     if (n == 0) {
                         getpeername(fd, (struct sockaddr*)&addr, (socklen_t*)&addrlen);
 
                         //Close the socket and mark as 0 in list for reuse
                         close(fd);
                         fdClients[i] = 0;
-                        // /* error */ exit(1);
                     }
                     else if (n == -1) { perror("fdclients read"); exit(1); }
                     else {
@@ -560,6 +566,7 @@ int main(int argc, char* argv[]) {
                                 strcpy(buffer, "RLO NOK\n");
 
                             /* error in sending */
+
                             if (send(fd, buffer, strlen(buffer), 0) != strlen(buffer))
                                 perror("RLO send");
                             fflush(stdout);
