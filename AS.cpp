@@ -202,8 +202,8 @@ int checkUnregisterInput(char buffer[SIZE]) {
         rmdir(dirName);
         memset(filename, '\0', SIZE * sizeof(char));
         strcpy(filename, dirName);
-        strcat(filename, "/fdIndex.txt");   
-        remove(filename); /* remove fdIndex.txt */
+        strcat(filename, "/fd.txt");   
+        remove(filename); /* remove fd.txt */
         rmdir(dirName);
         // more files
         return 1;    
@@ -258,7 +258,7 @@ int checkLoginInput(char buffer[SIZE]) {
 
 int treatRequestInput(char buffer[SIZE], int fdIndex) {
     char filename[SIZE], fname[SIZE], uid[SIZE], rid[SIZE], fop[2], dirName[SIZE], toSend[SIZE], op_name[SIZE];
-
+    ofstream userTid, userFD; 
     sscanf(buffer, "REQ %[0-9] %[0-9] %s %s\n", uid, rid, fop, fname);
 
     // CONFIRMAR SE UID CORRECTO - EUSER
@@ -308,9 +308,7 @@ int treatRequestInput(char buffer[SIZE], int fdIndex) {
         return EPD;
 
     int temp = rand() % 8000 + 1000;
-
     string s_vc = to_string(temp);
-
     char vc[6];
     strcpy(vc, s_vc.c_str());
     
@@ -325,17 +323,6 @@ int treatRequestInput(char buffer[SIZE], int fdIndex) {
         strcat(toSend, fname);
     }
     strcat(toSend, "\n");
-
-    /* create file with user fd */
-    memset(filename, '\0', strlen(filename) * sizeof(char));
-    strcpy(filename, dirName);
-    strcat(filename, "/fdIndex.txt");
-    printf("filename: %s, fdIndex: %d\n", filename, fdIndex);
-    ofstream userFdIndex; 
-    userFdIndex.open(filename);
-    userFdIndex << fdIndex;
-    userFdIndex.close();
-
 
     int n = sendto(udpClientSocket, toSend, strlen(toSend), 0, res_uc->ai_addr, res_uc->ai_addrlen);
     if (n == -1)
@@ -357,6 +344,27 @@ int treatRequestInput(char buffer[SIZE], int fdIndex) {
         strcpy(op_name, "remove");
     }
 
+    /* create file for fop, filename and later tid */
+    char tempfileName_2[SIZE];
+    strcpy(tempfileName_2, dirName);
+    strcat(tempfileName_2, "/tid.txt");
+    userTid.open(tempfileName_2);
+    userTid << fop;
+    userTid << '\n';
+    userTid << fname;
+    userTid << '\n';
+    userTid.close();
+
+    /* create file with user fd */
+    char tempfileName_1[SIZE];
+    strcpy(tempfileName_1, dirName);
+    strcat(tempfileName_1, "/fd.txt");
+    printf("tempfilename: %s, fdindex: %s\n", tempfileName_1, to_string(fdIndex).c_str());
+    userFD.open(tempfileName_1);
+    userFD << to_string(fdIndex);
+    userFD << '\n';
+    userFD.close();
+
     printf("User: %s req, UID=%s, file: %s, RID=%s, VC=%s\n", op_name, uid, fname, rid, vc);
     return 1;
 }
@@ -368,14 +376,14 @@ void treatRVCInput(char buffer[SIZE]) { //as received rvc from pd and he's going
     sscanf(buffer, "RVC %[0-9] %s\n", uid, status);
 
     strcat(dirName, uid);
-    strcat(dirName, "/fdIndex.txt");
+    strcat(dirName, "/fd.txt");
 
     string index;
     ifstream indexFile;
     indexFile.open(dirName);
     getline(indexFile, index);
     indexFile.close();
-    remove(dirName);
+    //remove(dirName);
     // index
     fdIndex = atoi(index.c_str());
 
@@ -385,17 +393,18 @@ void treatRVCInput(char buffer[SIZE]) { //as received rvc from pd and he's going
     else 
         strcpy(msg, "RRQ EPD\n");
 
+    printf("index: %s, msg: %s",index.c_str(), msg);
+
     if (send(fdClients[fdIndex], msg, strlen(msg), 0) != strlen(msg))
         perror("RRQ send");
 }
 
 int checkAuthenticationInput(char buffer[SIZE]) {
-    char uid[SIZE], rid[SIZE], vc[SIZE];
-    int tid;
+    char uid[SIZE], rid[SIZE], vc[SIZE], dirName[SIZE];
 
     sscanf(buffer, "AUT %[0-9] %[0-9] %[0-9]\n", uid, rid, vc);
 
-    return tid;
+    return atoi(uid);
 }
 
 int main(int argc, char* argv[]) {
@@ -580,18 +589,39 @@ int main(int argc, char* argv[]) {
                             
                         }
                         else if (strcmp(command, "AUT") == 0) {
-                            if (checkAuthenticationInput(buffer)) {
+                            int res = checkAuthenticationInput(buffer);
+                            if (res != 0) {
 
-                                int temp = rand() % 8000 + 1000;
-                                string s_tid = to_string(temp);
+                                int tid_temp = rand() % 8000 + 1000;
 
+                                strcpy(dirName, "users/");
+                                strcat(dirName, to_string(res).c_str());
+                                strcat(dirName, "/tid.txt");
+                                ofstream userTid; 
+                                userTid.open(dirName, std::ios_base::app);
+                                userTid << tid_temp;
+                                userTid.close();
+                                
+                                string s_tid = to_string(tid_temp);
                                 char tid[6];
                                 strcpy(tid, s_tid.c_str());
 
+                                string inFileFOP;
+                                string inFileFNAME;
+                                ifstream inFile;
+                                inFile.open(dirName);
+                                getline(inFile, inFileFOP);
+                                getline(inFile, inFileFNAME);
+                                inFile.close();
+                                
                                 strcpy(buffer, "RAU");
                                 strcat(buffer, " ");
                                 strcat(buffer, tid);
                                 strcat(buffer, "\n");
+
+                                //aceder ao file tid para recuperar fop e fname
+
+                                printf("User: UID=%d, %s, %s, TID=%s\n", res, inFileFOP.c_str(), inFileFNAME.c_str(), tid);
                             }
                             else 
                                 strcpy(buffer, "RAU 0\n");

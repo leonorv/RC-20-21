@@ -178,26 +178,30 @@ int main(int argc, char* const argv[]) {
                         if (n <= 0) { perror("tcp write"); exit(1); }
 
                     }
-                    else if (strcmp(command, "upload") == 0 || strcmp(command, "retrieve") == 0 || strcmp(command, "delete") == 0 || strcmp(command, "remove\n") == 0 || strcmp(command, "remove\n") == 0 || strcmp(command, "list\n") == 0) {
+                    else if(strcmp(command, "upload") == 0 || strcmp(command, "u") == 0 ||
+                            strcmp(command, "retrieve") == 0 || strcmp(command, "r") == 0 ||
+                            strcmp(command, "delete") == 0 || strcmp(command, "d") == 0 ||
+                            strcmp(command, "remove\n") == 0 || strcmp(command, "x\n") == 0 || 
+                            strcmp(command, "list\n") == 0 || strcmp(command, "l") == 0) {
                         if (!setTCPClientFS()) {
                             perror("setup FS socket");
                         }
-                        if (strcmp(command, "upload") == 0) {
+                        if (strcmp(command, "upload") == 0 || strcmp(command, "u") == 0) {
                             /* UPL UID TID Fname Fsize data */
                             // processUpload(msg);
                             //sprintf(ptr, "UPL %s %d %s %s\n", uid, tid, fname, Fsize);
 
                         }
-                        else if (strcmp(command, "retrieve") == 0) {
+                        else if (strcmp(command, "retrieve") == 0 || strcmp(command, "r") == 0) {
                         
                         }
-                        else if (strcmp(command, "delete") == 0) {
+                        else if (strcmp(command, "delete") == 0 || strcmp(command, "d") == 0) {
                         
                         }
                         else if (strcmp(command, "remove\n") == 0 || strcmp(command, "x\n") == 0) {
                         
                         }
-                        else if (strcmp(command, "list\n") == 0) {
+                        else if (strcmp(command, "list\n") == 0 || strcmp(command, "l\n") == 0) {
                             /* LST UID TID */
                             sprintf(ptr, "LST %s %d\n", uid, tid);
                             printf("ptr: %s\n", ptr);
@@ -254,8 +258,9 @@ int main(int argc, char* const argv[]) {
                         printf("Incorrect user.\n");
                     else if (strcmp(token, "ERR\n") == 0)
                         printf("Incorrect request.\n");
-                    else 
+                    else if (strcmp(token, "OK\n") == 0)
                         printf("Request accepted\n"); 
+                    else perror("RRQ receive invalid token");
                 }
                 else if (strcmp(command, "RAU") == 0) {
                     int tidTemp;

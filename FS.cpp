@@ -133,6 +133,7 @@ int main(int argc, char* argv[]) {
         for (; retval; retval--) {
             if (FD_ISSET(udpClientSocket, &readfds))
             {
+                /*SENDING TO AS AS A CLIENT*/
                 addrlen_udp = sizeof(addr_udp);
                 n = recvfrom(udpClientSocket, buffer, 128, 0, (struct sockaddr*) &addr_udp, &addrlen_udp);
                 if (n == -1)/*error*/exit(1);
@@ -177,7 +178,8 @@ int main(int argc, char* argv[]) {
                     
                     printf("operation validated\n");
 
-                /*send confirmation message to AS*/
+                /*send confirmation RUP message to User
+                - after this the user closes connection*/
                 n = sendto(tcpServerSocket, buffer, strlen(buffer), 0, (struct sockaddr*) &addr_tcp, addrlen_tcp);
                     if (n == -1)/*error*/exit(1);   
                 memset(buffer, '\0', SIZE * sizeof(char));
