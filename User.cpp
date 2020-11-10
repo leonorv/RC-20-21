@@ -16,7 +16,7 @@
 using namespace std;
 
 #define SIZE 128
-#define max(A,B)((A)>=(B)?(A):(B))
+#define max(A,B)((A) >= (B)?(A):(B))
 
 extern int errno;
 int tcpSocket_AS, tcpSocket_FS, errcode, rID, vc, tid, afd = 0;
@@ -93,7 +93,7 @@ void treatRLS() {
         return;
     }
     else if (strcmp(token, "IRV\n") == 0) {
-        printf("AS validaion error\n");
+        printf("AS validation error\n");
         return;
     }
     else if (strcmp(token, "ERR\n") == 0) {
@@ -330,6 +330,7 @@ int main(int argc, char* const argv[]) {
                         
                         }
                         else if (strcmp(command, "delete") == 0 || strcmp(command, "d") == 0) {
+                            //sprintf(ptr, "RTV %s %d %s\n", uid, tid, filenameTemp);
                         
                         }
                         else if (strcmp(command, "remove\n") == 0 || strcmp(command, "x\n") == 0) {
@@ -338,8 +339,6 @@ int main(int argc, char* const argv[]) {
                         else if (strcmp(command, "list\n") == 0 || strcmp(command, "l\n") == 0) {
                             /* LST UID TID */
                             sprintf(ptr, "LST %s %d\n", uid, tid);
-
-                        
                         }
                         nbytes = strlen(ptr);
                         nleft = nbytes;

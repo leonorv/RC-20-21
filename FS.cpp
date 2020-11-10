@@ -205,6 +205,16 @@ int main(int argc, char* argv[]) {
                 if (FD_ISSET(fd, &readfds)) { 
 
                     int n = read(fd, buffer, SIZE);
+                    char *token;
+                    token = strtok(buffer, " ");
+                    strcpy(command, token);
+                    while (n != 0) {                        
+                        token = strtok(NULL, " ");
+                        strcpy(check, token);
+                    
+                        memset(buffer, '\0', n * sizeof(char));
+                        n = read(fd, buffer, SIZE);
+                    }
 
                     if (n == 0) {
                         getpeername(fd, (struct sockaddr*)&addr, (socklen_t*)&addrlen);
@@ -222,6 +232,7 @@ int main(int argc, char* argv[]) {
                         if (strcmp(command, "LST") == 0) {
                             token = strtok(NULL, " ");
                             strcpy(check, token);
+
                         }
                         else if (strcmp(command, "RTV") == 0) {
                             token = strtok(NULL, " ");
@@ -243,7 +254,7 @@ int main(int argc, char* argv[]) {
                         {
                             printf("ERR\n");
                         }  
-                        
+
                         strcpy(buffer,"VLD");
 
                         /*send confirmation message to AS*/

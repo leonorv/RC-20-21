@@ -38,9 +38,9 @@ int udpServerSocket, tcpServerSocket, udpClientSocket, udpServerSocket_FS;
 fd_set readfds;
 int maxfd, retval;
 int fd, newfd, errcode;
-struct addrinfo hints_uc, hints_us, hints_ts, *res_uc, *res_ts, *res_us;
-struct sockaddr_in addr_uc, addr_us, addr_ts, addr_sfs, addr;
-socklen_t addrlen_uc, addrlen_us, addrlen_ts, addrlen_sfs, addrlen;
+struct addrinfo hints_uc, hints_us, hints_usf, hints_ts, *res_uc, *res_ts, *res_us, *res_usf;
+struct sockaddr_in addr_uc, addr_us, addr_usf,  addr_ts, addr_sfs, addr;
+socklen_t addrlen_uc, addrlen_us, addrlen_usf, addrlen_ts, addrlen_sfs, addrlen;
 ssize_t n, nread, nw;
 char buffer[SIZE], command[SIZE], password[SIZE], uid[SIZE], *ptr, rid[SIZE], fop;
 int connectedUsers = 0;
@@ -90,6 +90,18 @@ void setupUDPServerSocket() {
     errcode = getaddrinfo(NULL, ASport, &hints_us, &res_us);
         if (errcode != 0) { perror("USS get addr info"); exit(1); }
     if (bind(udpServerSocket, res_us->ai_addr, res_us->ai_addrlen) < 0)  { perror("bind udp server socket"); exit(1); }
+}
+
+void setupUDPServerSocket_FS() {
+    udpServerSocket_FS = socket(AF_INET, SOCK_DGRAM, 0); //UDP socket
+        if (udpServerSocket_FS == -1)  { perror("udp server socket"); exit(1); }
+    memset(&hints_usf, 0, sizeof hints_usf);
+    hints_usf.ai_family = AF_INET; //IPv4
+    hints_usf.ai_socktype = SOCK_DGRAM; //UDP socket
+    hints_usf.ai_flags = AI_PASSIVE;
+    errcode = getaddrinfo(NULL, ASport, &hints_usf, &res_usf);
+        if (errcode != 0) { perror("USS get addr info"); exit(1); }
+    if (bind(udpServerSocket_FS, res_usf->ai_addr, res_usf->ai_addrlen) < 0)  { perror("bind udp server socket fs"); exit(1); }
 }
 
 void setupTCPServerSocket() {
@@ -324,6 +336,8 @@ int treatRequestInput(char buffer[SIZE], int fdIndex) {
     }
     strcat(toSend, "\n");
 
+    printf("tosend to pd: %s\n", toSend);
+
     int n = sendto(udpClientSocket, toSend, strlen(toSend), 0, res_uc->ai_addr, res_uc->ai_addrlen);
     if (n == -1)
         perror("VLC send");
@@ -359,7 +373,6 @@ int treatRequestInput(char buffer[SIZE], int fdIndex) {
     char tempfileName_1[SIZE];
     strcpy(tempfileName_1, dirName);
     strcat(tempfileName_1, "/fd.txt");
-    printf("tempfilename: %s, fdindex: %s\n", tempfileName_1, to_string(fdIndex).c_str());
     userFD.open(tempfileName_1);
     userFD << to_string(fdIndex);
     userFD << '\n';
@@ -393,10 +406,57 @@ void treatRVCInput(char buffer[SIZE]) { //as received rvc from pd and he's going
     else 
         strcpy(msg, "RRQ EPD\n");
 
-    printf("index: %s, msg: %s",index.c_str(), msg);
+    // printf("index: %s, msg: %s",index.c_str(), msg);
 
     if (send(fdClients[fdIndex], msg, strlen(msg), 0) != strlen(msg))
         perror("RRQ send");
+}
+
+void treatVLDInput(char buffer[SIZE]) {
+    // VLD UID TID
+    char uid[6], tid[5];
+    char path[SIZE] = "users/";
+    char fileBuffer[SIZE];
+    char toSend[SIZE];
+    // char fop[2], name[SIZE], fileTid
+
+    sscanf(buffer, "VLD %s %s\n", uid, tid);
+
+    strcat(path, uid);
+    strcat(path, "/tid.txt");
+
+    string fileTID, fop, fname;
+    ifstream f;
+    f.open(path);
+    getline(f, fop);
+    if (strcmp(fop.c_str(), "L") != 0 && strcmp(fop.c_str(), "X")) {
+        getline(f, fname);
+    }
+    getline(f, fileTID);
+
+        //CNF UID TID Fop [Fname]
+        strcpy(toSend, "CNF ");
+        strcat(toSend, uid);
+        strcat(toSend, " ");
+        strcat(toSend, tid);
+        strcat(toSend, " ");
+        if (strcmp(tid, fileTID.c_str()) != 0) {
+            printf("incorrect tid");
+            strcat(toSend, "E"); //error fop
+        }
+        else {
+            strcat(toSend, fop.c_str());
+        }
+        if (strcmp(fop.c_str(), "L") != 0 && strcmp(fop.c_str(), "X")) {
+            strcat(toSend, " ");
+            strcat(toSend, fname.c_str());
+        }
+        strcat(toSend, '\n');
+    
+        /* sends ok or not ok to fs */
+        int n = sendto(udpServerSocket_FS, toSend, strlen(toSend), 0, (struct sockaddr*) &addr_usf, addrlen_usf);
+        if (n == -1) perror("sendto udp server socket fs");
+    // }
 }
 
 int checkAuthenticationInput(char buffer[SIZE]) {
@@ -408,12 +468,14 @@ int checkAuthenticationInput(char buffer[SIZE]) {
 }
 
 int main(int argc, char* argv[]) {
+    int n, totalRead;
     if (gethostname(ASIP ,SIZE) == -1)
         fprintf(stderr,"error: %s\n", strerror(errno));
 
     int check = mkdir("users", 0777);
 
     setupUDPServerSocket();
+    setupUDPServerSocket_FS();
     setupTCPServerSocket();
 
     /* Initialize TCP babies fds */
@@ -431,6 +493,7 @@ int main(int argc, char* argv[]) {
     while (1) {
         FD_ZERO(&readfds);
         FD_SET(udpServerSocket, &readfds);
+        FD_SET(udpServerSocket_FS, &readfds);
         FD_SET(tcpServerSocket, &readfds);
         FD_SET(udpClientSocket, &readfds);
         maxfd = tcpServerSocket;
@@ -456,6 +519,7 @@ int main(int argc, char* argv[]) {
         ==========================*/
         maxfd = max2(udpServerSocket, maxfd);
         maxfd = max2(maxfd, udpClientSocket);
+        maxfd = max2(maxfd, udpServerSocket_FS);
         retval = select(maxfd + 1, &readfds, NULL, NULL, NULL);
             if (retval <= 0) { perror("select retval"); exit(1); }
         
@@ -505,7 +569,7 @@ int main(int argc, char* argv[]) {
                 }
                 else if (strcmp(command, "UNR") == 0) {
                     if (checkUnregisterInput(buffer)) {
-                        printf("run ok\n");
+                        // printf("run ok\n");
                         strcpy(buffer, "RUN OK\n");
                     }
                     else
@@ -515,6 +579,21 @@ int main(int argc, char* argv[]) {
                 /* sends ok or not ok to pd */
                 n = sendto(udpServerSocket, buffer, strlen(buffer), 0, (struct sockaddr*) &addr_us, addrlen_us);
                 if (n == -1) { perror("sendto udp server socket"); continue; }
+            }
+            else if (FD_ISSET(udpServerSocket_FS, &readfds)) {
+                
+                addrlen_usf = sizeof(addr_usf);
+                n = recvfrom(udpServerSocket_FS, buffer, SIZE, 0, (struct sockaddr*) &addr_usf, &addrlen_usf);
+                if (n == -1)/*error*/perror("recvfrom udpServerSocket_FS");
+                buffer[n] = '\0';
+
+                /* get command code */
+                strncpy(command, buffer, 3);
+
+                if (strcmp(command, "VLD") == 0) {                    
+                    treatVLDInput(buffer);
+                }
+
             }
             else if (FD_ISSET(tcpServerSocket, &readfds)) {
                 /*===========================================
@@ -537,14 +616,12 @@ int main(int argc, char* argv[]) {
             for (int i = 0; i < maxUsers; i++) {   
                 fd = fdClients[i];   
                 if (FD_ISSET(fd, &readfds)) {  
-                    char readBuffer[SIZE];
-                    
-                    int n = read(fd, readBuffer, SIZE);
-                    while (n != 0) {
-                        strcat(buffer, readBuffer);
-                        memset(readBuffer, '\0', strlen(readBuffer) * sizeof(char));
-                        n = read(fd, readBuffer, SIZE);
-                    }
+                    char readBuffer;
+
+                    n = 0;
+                    do {
+                        n += read(fd, &buffer[n], SIZE - n); 
+                    } while (n != strlen(buffer));
 
                     if (n == 0) {
                         getpeername(fd, (struct sockaddr*)&addr, (socklen_t*)&addrlen);
@@ -566,10 +643,10 @@ int main(int argc, char* argv[]) {
                                 strcpy(buffer, "RLO NOK\n");
 
                             /* error in sending */
-
-                            if (send(fd, buffer, strlen(buffer), 0) != strlen(buffer))
-                                perror("RLO send");
-                            fflush(stdout);
+                            n = 0;
+                            while (n != strlen(buffer)) {
+                                n += send(fd, &buffer[n], strlen(buffer)-n, 0);
+                            }
                         }
                         else if (strcmp(command, "REQ") == 0) {
                             
@@ -587,12 +664,15 @@ int main(int argc, char* argv[]) {
                             else if (reqResult == EPD)
                                 strcat(buffer, "EPD\n");
                             else {
-                                //strcat(buffer, "OK\n");
                                 continue; //wait for pd confirmation
                             }
                             
-                            if (send(fd, buffer, strlen(buffer), 0) != strlen(buffer))
-                                perror("RRQ send"); 
+                            n = 0;
+                            while (n != strlen(buffer)) {
+                                n += send(fd, &buffer[n], strlen(buffer) - n, 0);
+                            }
+
+
                             
                         }
                         else if (strcmp(command, "AUT") == 0) {
@@ -632,9 +712,11 @@ int main(int argc, char* argv[]) {
                             }
                             else 
                                 strcpy(buffer, "RAU 0\n");
-                            /* error in sending */
-                            if (send(fd, buffer, strlen(buffer), 0) != strlen(buffer))
-                                perror("RAU send");
+
+                            n = 0;
+                            while (n != strlen(buffer)) {
+                                n += send(fd, &buffer[n], strlen(buffer)-n, 0);
+                            }
                         }
                     }
                     memset(buffer, '\0', strlen(buffer) * sizeof(char));

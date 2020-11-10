@@ -240,10 +240,10 @@ int main(int argc, char* argv[]){
                     else if (strcmp(fop, "D") == 0) {
                         strcpy(op_name, "retrieve:");
                     } 
-                    else if (strcmp(fop, "L\n") == 0) {
+                    else if (strcmp(fop, "L") == 0) {
                         strcpy(op_name, "list\n");
                     }  
-                    else if (strcmp(fop, "X\n") == 0) {
+                    else if (strcmp(fop, "X") == 0) {
                         strcpy(op_name, "remove\n");
                     }
                     else{
@@ -251,7 +251,7 @@ int main(int argc, char* argv[]){
                         continue;
                     }
 
-                    if (strcmp(fop, "L\n") == 0 || strcmp(fop, "X\n") == 0) {
+                    if (strcmp(fop, "L") == 0 || strcmp(fop, "X") == 0) {
                         printf("VC=%s, %s", vc, op_name);
                     }
                     else {
