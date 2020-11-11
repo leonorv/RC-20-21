@@ -27,7 +27,7 @@ char ASIP[SIZE], ASport[SIZE] = "58030", FSIP[SIZE], FSport[SIZE] = "59030";
 fd_set readfds;
 int maxfd, retval;
 ssize_t n, nbytes, nleft;
-char *ptr, buffer[SIZE], msg[SIZE], command[SIZE], fop[SIZE], filename[SIZE], filenameTemp[SIZE], uid[SIZE], uidTemp[SIZE];
+char buffer[SIZE], msg[SIZE], command[SIZE], fop[SIZE], filename[SIZE], filenameTemp[SIZE], uid[SIZE], uidTemp[SIZE];
 
 
 void processInput(int argc, char* const argv[]) {
@@ -74,7 +74,6 @@ void treatRLS() {
 
     int n = read(tcpSocket_FS, buffer, SIZE);
     while (n != 0) {
-        printf("buffer: %s\n", buffer);
         size += n;
         fwrite(buffer, sizeof(char), sizeof(buffer), tempFile);
         memset(buffer, '\0', n * sizeof(char));
@@ -125,77 +124,77 @@ void treatRLS() {
 
 void treatRRT() {
     //RRT status [Fsize data]
-    char command[SIZE];
-    char buffer[SIZE];
+    char fileBuff[SIZE];
+    char buff[SIZE];
     char fsize[10];
     char path[SIZE] = "files/";
     int size;
     strcat(path, filename);
+    strcat(path, "\0");
 
-    printf("hjk\n");
 
+    int n = read(tcpSocket_FS, buff, 3);
 
-    //RRT status [Fsize data]
-    // char bufferTemp[4];
-    int n = read(tcpSocket_FS, buffer, 3);
-
-    if (strcmp(buffer, "OK ") != 0) { //if status != OK
-        if (strcmp(buffer, "EOF") == 0) {
+    if (strcmp(buff, "OK ") != 0) { //if status != OK
+        if (strcmp(buff, "EOF") == 0) {
         printf("File not available\n");
             return;
         }
-        else if (strcmp(buffer, "NOK") == 0) {
+        else if (strcmp(buff, "NOK") == 0) {
             printf("No content available for this user\n");
             return;
         }
-        else if (strcmp(buffer, "INV") == 0) {
+        else if (strcmp(buff, "INV") == 0) {
             printf("AS validation error\n");
             return;
         }
-        else if (strcmp(buffer, "ERR") == 0) {
+        else if (strcmp(buff, "ERR") == 0) {
             printf("Invalid request\n");
             return;
         }
 
     }
-    memset(buffer, '\0', sizeof(char) * strlen(buffer));
-    n = read(tcpSocket_FS, buffer, 1);
-    while (strcmp(buffer, " ") != 0) {
-        strcpy(fsize, buffer);
-        memset(buffer, '\0', sizeof(char) * strlen(buffer));
-        n = read(tcpSocket_FS, buffer, 1);
-    }
+
+    do {
+        memset(buff, '\0', sizeof(char) * strlen(buff));
+        n = read(tcpSocket_FS, buff, 1);
+        buff[1] = '\0';
+        strcat(fsize, buff);
+    }   while (strcmp(buff, " ") != 0);
 
     size = atoi(fsize);
-
-    FILE *f;
-    f = fopen(path, "wb");
-    do {
-        memset(buffer, '\0', strlen(buffer));
-        n = read(tcpSocket_FS, buffer, SIZE);
-        size -= n;
-        fwrite(buffer, 1, n, f);
-    } while (size > 0);
-
-
-    fclose(f);
+    printf("size: %d. fsize %s.\n", size, fsize); 
 
     printf("File name: %s\n", filename);
     printf("Path: %s\n", path);
 
-    
+    FILE *f;
+    printf("Path before: %s\n", path);
+    f = fopen(path, "wb");
+    printf("Path after: %s\n", path);
+    do {
+        n = read(tcpSocket_FS, fileBuff, SIZE);
+        size -= n;
+        fwrite(fileBuff, 1, n, f);
+        memset(fileBuff, '\0', strlen(fileBuff));
+    } while (size > 0);
+
+    printf("final path print: %s\n", path);
+    fclose(f);    
 }
 
 int setTCPClientFS() {
     tcpSocket_FS = socket(AF_INET, SOCK_STREAM, 0);
     if (tcpSocket_FS == -1) { perror("socket FS"); return 0; }
-    memset(&hints_FS, 0, sizeof(hints_FS));
     hints_FS.ai_family = AF_INET;
     hints_FS.ai_socktype = SOCK_STREAM;
+    printf("fazendo get addr\n"); fflush(stdout);
     errcode = getaddrinfo(FSIP, FSport, &hints_FS, &res_FS);  
+    printf("fez get addr\n"); fflush(stdout);
     if (errcode != 0) { perror("FS addr info"); return 0; }
     int n = connect(tcpSocket_FS, res_FS->ai_addr, res_FS->ai_addrlen);
     if (n == -1) { perror("socket FS"); return 0; }
+    printf("chegou aqui\n");
     FD_SET(tcpSocket_FS, &readfds);
     maxfd = max(maxfd, tcpSocket_FS); 
     return 1;
@@ -250,9 +249,9 @@ int main(int argc, char* const argv[]) {
 
                 memset(msg, '\0', strlen(msg) * sizeof(char));
                 fgets(msg, SIZE, stdin);
-                ptr = (char*) malloc(strlen(msg) + 1);
-                strcpy(ptr, msg);
-                strcat(ptr, "\0");
+                strcpy(buffer, msg);
+                strcat(buffer, "\0");
+
 
                 if (strcmp(msg, "exit\n") == 0) {
                     /*====================================================
@@ -273,13 +272,15 @@ int main(int argc, char* const argv[]) {
                     char *token = strtok(temp, " ");
                     strcpy(command, token);
 
+                    strcat(command, "\0");
+
                     if (strcmp(command, "login") == 0 || strcmp(command, "req") == 0 || strcmp(command, "val") == 0) {
                         if (strcmp(command, "login") == 0) {
                             token = strtok(NULL, " ");
                             strcpy(uidTemp, token);
 
                             token = strtok(NULL, " "); /* token has password */
-                            sprintf(ptr, "LOG %s %s", uidTemp, token);
+                            sprintf(buffer, "LOG %s %s", uidTemp, token);
                         }
                         else if (strcmp(command, "req") == 0) {
 
@@ -288,53 +289,44 @@ int main(int argc, char* const argv[]) {
                             rID = rand() % 9000 + 1000;
                             sscanf(msg, "req %s %s\n", fop, filenameTemp);
                             if (strlen(filenameTemp) != 0)
-                                sprintf(ptr, "REQ %s %d %s %s\n", uid, rID, fop, filenameTemp);
+                                sprintf(buffer, "REQ %s %d %s %s\n", uid, rID, fop, filenameTemp);
                             else 
-                                sprintf(ptr, "REQ %s %d %s\n", uid, rID, fop);
+                                sprintf(buffer, "REQ %s %d %s\n", uid, rID, fop);
 
                         }
                         else if (strcmp(command, "val") == 0) {
                             token = strtok(NULL, " ");
                             vc = atoi(token);
-                            sprintf(ptr, "AUT %s %d %d\n", uid, rID, vc);
+                            sprintf(buffer, "AUT %s %d %d\n", uid, rID, vc);
                         }
                         else {
                             /* continue if incorrect command */
                             perror("invalid request");
                             continue;
                         }   
-                        nbytes = strlen(ptr);
+                        nbytes = strlen(buffer);
                         nleft = nbytes;
 
                         // REQ UID RID Fop [Fname]
-                        n = write(tcpSocket_AS, ptr, nleft);
+                        n = write(tcpSocket_AS, buffer, nleft);
                         if (n <= 0) { perror("tcp write"); exit(1); }
 
                     }
                     else if(strcmp(command, "upload") == 0 || strcmp(command, "u") == 0 ||
                             strcmp(command, "retrieve") == 0 || strcmp(command, "r") == 0 ||
                             strcmp(command, "delete") == 0 || strcmp(command, "d") == 0 ||
-                            strcmp(command, "remove\n") == 0 || strcmp(command, "x\n") == 0 || 
-                            strcmp(command, "list\n") == 0 || strcmp(command, "l") == 0) {
+                            strcmp(command, "remove") == 0 || strcmp(command, "x") == 0 || 
+                            strcmp(command, "list\n") == 0 || strcmp(command, "l\n") == 0) {
                         if (!setTCPClientFS()) {
                             perror("setup FS socket");
                         }
                         if (strcmp(command, "upload") == 0 || strcmp(command, "u") == 0) {
-                            /* UPL UID TID Fname Fsize data */
-                            // processUpload(msg);
-
-                            //sprintf(ptr, "UPL %s %d %s %s\n", uid, tid, filenameTemp, Fsize);
 
                         }
                         else if (strcmp(command, "retrieve") == 0 || strcmp(command, "r") == 0) {
-                            //RTV UID TID Fname
-                            sprintf(ptr, "RTV %s %d %s\n", uid, tid, filenameTemp);
-                            // printf()
-                            
-                        
+                            sprintf(buffer, "RTV %s %d %s\n", uid, tid, filenameTemp);
                         }
                         else if (strcmp(command, "delete") == 0 || strcmp(command, "d") == 0) {
-                            //sprintf(ptr, "RTV %s %d %s\n", uid, tid, filenameTemp);
                         
                         }
                         else if (strcmp(command, "remove\n") == 0 || strcmp(command, "x\n") == 0) {
@@ -342,13 +334,13 @@ int main(int argc, char* const argv[]) {
                         }
                         else if (strcmp(command, "list\n") == 0 || strcmp(command, "l\n") == 0) {
                             /* LST UID TID */
-                            sprintf(ptr, "LST %s %d\n", uid, tid);
+                            sprintf(buffer, "LST %s %d\n", uid, tid);
                         }
-                        nbytes = strlen(ptr);
+                        nbytes = strlen(buffer);
                         nleft = nbytes;
 
 
-                        n = write(tcpSocket_FS, ptr, nleft);
+                        n = write(tcpSocket_FS, buffer, nleft);
                         if (n <= 0) { perror("tcp write"); exit(1); }
                     }
                     else {
@@ -417,43 +409,20 @@ int main(int argc, char* const argv[]) {
                         printf("Authenticated! (TID=%d)\n", tidTemp); 
                     }
                 }
-                if (ptr)
-                    free(ptr);
             }
             else if (FD_ISSET(tcpSocket_FS, &readfds)) {
 
                 char *token;
                 char bufferTemp[SIZE];
-                // char readBuffer[SIZE];
-                // ofstream tempFile;
-                // FILE *tempFile;
                 memset(command, '\0', strlen(command)*sizeof(char));
                 int n = read(tcpSocket_FS, command, 4);
                 command[4] = '\0';
                 printf("command: %s.\n", command);
 
-
-                //strcpy(bufferTemp, buffer);
-                //token = strtok(buffer, " ");
-                //strcpy(command, token);
-
-                // while (n != 0) {
-                //     tempFile = fopen("temp.txt", "w");
-                //     fwrite (buffer , sizeof(char), sizeof(buffer), tempFile);
-                //     memset(buffer, '\0', strlen(buffer) * sizeof(char));
-                //     n = read(tcpSocket_FS, buffer, SIZE);
-                // }   
-
-                // fclose(tempFile);
-
-               // printf("final buffer: %s\n", buffer); fflush(stdout);
-
                 if (strcmp(command, "RLS ") == 0) {
                     treatRLS();
                 }
                 else if (strcmp(command, "RRT ") == 0) {
-                    //fwrite(fileBuffer, buffer);
-
                     treatRRT();
                  
                 }
