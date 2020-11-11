@@ -169,9 +169,7 @@ void treatRRT() {
     printf("Path: %s\n", path);
 
     FILE *f;
-    printf("Path before: %s\n", path);
     f = fopen(path, "wb");
-    printf("Path after: %s\n", path);
     do {
         n = read(tcpSocket_FS, fileBuff, SIZE);
         size -= n;
@@ -179,8 +177,88 @@ void treatRRT() {
         memset(fileBuff, '\0', strlen(fileBuff));
     } while (size > 0);
 
-    printf("final path print: %s\n", path);
     fclose(f);    
+}
+
+void treatRUP() {
+    char buffer[SIZE];
+    int n = read(tcpSocket_FS, buffer, SIZE);
+
+    printf("buffer: %s\n", buffer);
+
+    if (strcmp(buffer, "OK\n") != 0) { //if status != OK
+        if (strcmp(buffer, "DUP\n") == 0) {
+        printf("Uploaded duplicate file\n");
+            return;
+        }
+        else if (strcmp(buffer, "FULL\n") == 0) {
+            printf("File server full\n");
+            return;
+        }
+        else if (strcmp(buffer, "INV\n") == 0) {
+            printf("AS validation error\n");
+            return;
+        }
+        else if (strcmp(buffer, "ERR\n") == 0) {
+            printf("Invalid request\n");
+            return;
+        }
+
+    }
+    printf("File uploaded with success!\n");
+
+}
+
+void treatRRM() {
+    char buffer[SIZE];
+    int n = read(tcpSocket_FS, buffer, SIZE);
+
+    printf("buffer: %s\n", buffer);
+
+    if (strcmp(buffer, "OK\n") != 0) { //if status != OK
+        if (strcmp(buffer, "NOK\n") == 0) {
+            printf("User ID does not exist\n");
+            return;
+        }
+        else if (strcmp(buffer, "INV\n") == 0) {
+            printf("AS validation error\n");
+            return;
+        }
+        else if (strcmp(buffer, "ERR\n") == 0) {
+            printf("Invalid request\n");
+            return;
+        }
+
+    }
+    printf("All files removed with success\n");
+}
+
+void treatRDL() {
+    char buffer[SIZE];
+    int n = read(tcpSocket_FS, buffer, SIZE);
+
+    printf("buffer: %s\n", buffer);
+
+    if (strcmp(buffer, "OK\n") != 0) { //if status != OK
+        if (strcmp(buffer, "NOK\n") == 0) {
+            printf("User ID does not exist\n");
+            return;
+        }
+        else if (strcmp(buffer, "INV\n") == 0) {
+            printf("AS validation error\n");
+            return;
+        }
+        else if (strcmp(buffer, "EOF\n") == 0) {
+            printf("File not available\n");
+            return;
+        }
+        else if (strcmp(buffer, "ERR\n") == 0) {
+            printf("Invalid request\n");
+            return;
+        }
+
+    }
+    printf("File removed with success\n");
 }
 
 int setTCPClientFS() {
@@ -188,13 +266,10 @@ int setTCPClientFS() {
     if (tcpSocket_FS == -1) { perror("socket FS"); return 0; }
     hints_FS.ai_family = AF_INET;
     hints_FS.ai_socktype = SOCK_STREAM;
-    printf("fazendo get addr\n"); fflush(stdout);
     errcode = getaddrinfo(FSIP, FSport, &hints_FS, &res_FS);  
-    printf("fez get addr\n"); fflush(stdout);
     if (errcode != 0) { perror("FS addr info"); return 0; }
     int n = connect(tcpSocket_FS, res_FS->ai_addr, res_FS->ai_addrlen);
     if (n == -1) { perror("socket FS"); return 0; }
-    printf("chegou aqui\n");
     FD_SET(tcpSocket_FS, &readfds);
     maxfd = max(maxfd, tcpSocket_FS); 
     return 1;
@@ -301,13 +376,14 @@ int main(int argc, char* const argv[]) {
                         }
                         else {
                             /* continue if incorrect command */
-                            perror("invalid request");
+                            perror("invalid request"); 
                             continue;
                         }   
                         nbytes = strlen(buffer);
                         nleft = nbytes;
 
                         // REQ UID RID Fop [Fname]
+                        printf("sending: %s\n", buffer);
                         n = write(tcpSocket_AS, buffer, nleft);
                         if (n <= 0) { perror("tcp write"); exit(1); }
 
@@ -315,21 +391,61 @@ int main(int argc, char* const argv[]) {
                     else if(strcmp(command, "upload") == 0 || strcmp(command, "u") == 0 ||
                             strcmp(command, "retrieve") == 0 || strcmp(command, "r") == 0 ||
                             strcmp(command, "delete") == 0 || strcmp(command, "d") == 0 ||
-                            strcmp(command, "remove") == 0 || strcmp(command, "x") == 0 || 
+                            strcmp(command, "remove\n") == 0 || strcmp(command, "x\n") == 0 || 
                             strcmp(command, "list\n") == 0 || strcmp(command, "l\n") == 0) {
                         if (!setTCPClientFS()) {
                             perror("setup FS socket");
                         }
                         if (strcmp(command, "upload") == 0 || strcmp(command, "u") == 0) {
+                            /* upload filename */
+                            token = strtok(NULL, " ");
+                            printf("token : %s.\n",token);
+                            token[strlen(token) - 1] = '\0';
+                            printf("token : %s.\n",token);
+
+                            if (strcmp(token, filename) != 0) {
+                                perror("incorrect filename");
+                                // continue;
+                            }
+
+                            struct stat st;
+                            stat(token, &st);
+                            int size = st.st_size;
+
+                            FILE *f;
+                            f = fopen(token, "rb");
+
+                        
+                            memset(buffer, '\0', strlen(buffer) * sizeof(char));
+                            sprintf(buffer, "UPL %s %d %s %d ", uid, tid, token, size);
+                            n = write(tcpSocket_FS, buffer, strlen(buffer));
+
+                            // MAO INVISIVEL DO M3RC4D000
+
+                            int n = 0;
+                            do {
+                                char bufferTemp[1];
+                                memset(buffer, '\0', sizeof(char));
+                                fread(bufferTemp, 1, 1, f);
+                                n += write(tcpSocket_FS, bufferTemp, 1);
+                            } while (size > n);
+                            
+                            printf("File uploaded"); // adam smith ya
+                            
+                            continue;
 
                         }
                         else if (strcmp(command, "retrieve") == 0 || strcmp(command, "r") == 0) {
-                            sprintf(buffer, "RTV %s %d %s\n", uid, tid, filenameTemp);
+                            sprintf(buffer, "RTV %s %d %s\n", uid, tid, filenameTemp); // stuart mill conhesses
+                            
                         }
                         else if (strcmp(command, "delete") == 0 || strcmp(command, "d") == 0) {
-                        
+                            sprintf(buffer, "DEL %s %d %s\n", uid, tid, filenameTemp); // fs is homophobic
+                            
                         }
                         else if (strcmp(command, "remove\n") == 0 || strcmp(command, "x\n") == 0) {
+                            /* REM UID TID */
+                            sprintf(buffer, "REM %s %d\n", uid, tid);
                             
                         }
                         else if (strcmp(command, "list\n") == 0 || strcmp(command, "l\n") == 0) {
@@ -338,7 +454,6 @@ int main(int argc, char* const argv[]) {
                         }
                         nbytes = strlen(buffer);
                         nleft = nbytes;
-
 
                         n = write(tcpSocket_FS, buffer, nleft);
                         if (n <= 0) { perror("tcp write"); exit(1); }
@@ -427,13 +542,15 @@ int main(int argc, char* const argv[]) {
                  
                 }
                 else if (strcmp(command, "RUP ") == 0) {
+                    treatRUP();
                  
                 }
                 else if (strcmp(command, "RDL ") == 0) {
+                    treatRDL();
                  
                 }
                 else if (strcmp(command, "RRM ") == 0) {
-                 
+                    treatRRM();
                 }
                 close(tcpSocket_FS);
                 tcpSocket_FS = -1;

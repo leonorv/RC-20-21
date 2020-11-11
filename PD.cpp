@@ -94,7 +94,6 @@ int main(int argc, char* argv[]){
     errcode_s = getaddrinfo(NULL, PDport, &hints_s, &res_s);
         if (errcode_s != 0)/*error*/exit(1);
     if (bind(udpServerSocket, res_s->ai_addr, res_s->ai_addrlen) < 0) { perror("bind udp server socket"); exit(1); }
-    printf("PDport: %s, PDIP: %s\n", PDport, PDIP);
     
     while (1) {
         FD_ZERO(&readfds);
