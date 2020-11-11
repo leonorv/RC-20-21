@@ -10,7 +10,12 @@
 #include <string.h>
 #include <errno.h>
 #include <iostream>
-
+#include <sys/stat.h> 
+#include <fstream>
+#include <dirent.h> 
+#include <time.h>
+#include <ctype.h>
+                      
 using namespace std;
 
 #define max(A,B)((A)>=(B)?(A):(B))
@@ -19,6 +24,17 @@ using namespace std;
 extern int errno;
 
 char ASIP[SIZE], ASport[SIZE] = "58030", FSIP[SIZE], FSport[SIZE] = "59030";
+const int maxUsers = 5;
+int udpClientSocket, tcpServerSocket;
+fd_set readfds;
+int maxfd, retval;
+struct addrinfo hints_udp, hints_tcp, *res_udp, *res_tcp;
+int fd, newfd, errcode;
+struct sockaddr_in addr_udp, addr_tcp, addr;
+socklen_t addrlen_udp, addrlen_tcp, addrlen;
+ssize_t n, nread, nw;
+int fdClients[maxUsers];
+char *ptr, buffer[SIZE], check[3], command[4], password[8], uid[6]="", filename[50], vc[5], op_name[16], tid[5], fop[3], dirName[SIZE];
 
 void processInput(int argc, char* const argv[]) {
     if (argc%2 != 1) {
@@ -45,24 +61,116 @@ void processInput(int argc, char* const argv[]) {
     }
 }
 
-int main(int argc, char* argv[]) {
-    const int maxUsers = 5;
-    int udpClientSocket, tcpServerSocket;
-    fd_set readfds;
-    int maxfd, retval;
-    struct addrinfo hints_udp, hints_tcp, *res_udp, *res_tcp;
-    int fd, newfd, errcode;
-    struct sockaddr_in addr_udp, addr_tcp, addr;
-    socklen_t addrlen_udp, addrlen_tcp, addrlen;
-    ssize_t n, nread, nw;
-    int fdClients[maxUsers];
-    char *ptr, buffer[SIZE], check[3], command[4], password[8], uid[6]="", filename[50], vc[5], op_name[16], tid[5], fop[3];
+void treatRLS(int fd) {
+    struct dirent *userDir;  // Pointer for directory entry 
+    DIR *dr = opendir(uid); 
+    int n_files = 0;
+    int size;
+  
+    if (dr == NULL)  { 
+        perror("Could not open current directory"); 
+    } 
 
+    string s = "";
+
+    while ((userDir = readdir(dr)) != NULL) {
+        if (!strcmp(userDir->d_name, ".") || !strcmp(userDir->d_name, ".."))
+            continue;    /* skip self and parent */
+        s += userDir->d_name;
+        s += " ";
+        struct stat st;
+        stat(userDir->d_name, &st);
+        size = st.st_size;
+        s += to_string(size);
+        s += " ";
+        n_files++;
+    }
+
+    closedir(dr); 
+    if (n_files == 0) {
+        // RLS EOF
+        char buffer[9] = "RLS EOF\n";
+        n = 0;
+        while (n < 8) {
+            n += send(fd, &buffer[n], strlen(buffer)-n, 0);
+        }
+        return;
+    }
+
+
+    printf("s: %s\n", s.c_str());
+    // RLS_NFILES_[s]
+    int buffersize = 3 + 1 + strlen(to_string(n_files).c_str()) + 1 + strlen(s.c_str());
+    char buffer[buffersize];
+    strcpy(buffer, "RLS ");
+    strcat(buffer, to_string(n_files).c_str());
+    strcat(buffer, " ");
+    strcat(buffer, s.c_str());
+    buffer[buffersize-1] = '\n'; //'\n' sits on last space
+
+    n = 0;
+    while (n < buffersize) {
+        n += send(fd, &buffer[n], strlen(buffer)-n, 0);
+    }
+      
+
+}
+
+ int checkFilename(char filename[SIZE]) { //returns 1 if filename is ok
+     char buffer[SIZE];
+    
+    sscanf(filename, "%[a-zA-Z0-9._-]", buffer);
+    
+    if (strlen(buffer) != strlen(filename))
+        return 0;
+    if (strlen(buffer) < 6 || strlen(buffer) > 25)
+        return 0;
+    if (!(isalpha(buffer[strlen(buffer)-1]) && 
+        isalpha(buffer[strlen(buffer)-2]) && 
+        isalpha(buffer[strlen(buffer)-3]) && 
+        buffer[strlen(buffer)-4]=='.'))
+        return 0;
+    // printf("buffer: %s\n", buffer);
+    return 1;
+ }
+
+ void createFdFile(char uid[SIZE], int fd) {
+    char path[SIZE];
+    strcpy(path, dirName);
+    strcat(path, uid);
+    strcat(path, "/fd.txt");
+    ofstream userFD;
+    userFD.open(path);
+    userFD << to_string(fd);
+    userFD << '\n';
+    userFD.close();
+}
+
+int getUserFd(char uid[SIZE]) {
+    char path[SIZE];
+    strcpy(path, dirName);
+    strcat(path, uid);
+    strcat(path, "/fd.txt");
+
+    string fd;
+    ifstream fdFile;
+    fdFile.open(dirName);
+    getline(fdFile, fd);
+    fdFile.close();
+    remove(dirName);
+
+    return atoi(fd.c_str());    
+}
+
+int main(int argc, char* argv[]) {
     if (gethostname(ASIP ,SIZE) == -1)
         fprintf(stderr,"error: %s\n",strerror(errno));
     
     if (gethostname(FSIP ,SIZE) == -1)
         fprintf(stderr,"error: %s\n",strerror(errno));
+
+    strcpy(dirName, "FS_files/");
+    int error = mkdir(dirName, 0777);
 
     /*==========================
     Setting up UDP Server Socket
@@ -163,7 +271,8 @@ int main(int argc, char* argv[]) {
                         strcpy(buffer,"RRT");
                     }
                     else if (strcmp(fop, "L") == 0) {
-                        strcpy(buffer,"RLS");
+                        int fd = getUserFd(uid);
+                        treatRLS(fd); //
                     }
                     else if (strcmp(fop, "X") == 0) {
                         strcpy(buffer,"RRM");
@@ -171,19 +280,18 @@ int main(int argc, char* argv[]) {
                     else if (strcmp(fop, "E") == 0) {
                         strcpy(buffer,"E");
                     }
-                else
-                {
-                    printf("ERR\n");
-                }  
-                    
-                    printf("operation validated\n");
+                    else {
+                        printf("ERR\n");
+                    }  
+                        
+                        printf("operation validated\n");
 
                 /*send confirmation RUP message to User
                 - after this the user closes connection*/
-                n = sendto(tcpServerSocket, buffer, strlen(buffer), 0, (struct sockaddr*) &addr_tcp, addrlen_tcp);
-                    if (n == -1)/*error*/exit(1);   
-                memset(buffer, '\0', SIZE * sizeof(char));
-            }
+                   // n = send(tcpServerSocket, buffer, strlen(buffer), 0, (struct sockaddr*) &addr_tcp, addrlen_tcp);
+                    //    if (n == -1)/*error*/exit(1);   
+                    memset(buffer, '\0', SIZE * sizeof(char));
+                }
             }
             else if (FD_ISSET(tcpServerSocket, &readfds))
             {
@@ -203,18 +311,25 @@ int main(int argc, char* argv[]) {
                 fd = fdClients[i];  
 
                 if (FD_ISSET(fd, &readfds)) { 
+                   
 
-                    int n = read(fd, buffer, SIZE);
-                    char *token;
-                    token = strtok(buffer, " ");
-                    strcpy(command, token);
-                    while (n != 0) {                        
-                        token = strtok(NULL, " ");
-                        strcpy(check, token);
-                    
-                        memset(buffer, '\0', n * sizeof(char));
-                        n = read(fd, buffer, SIZE);
-                    }
+                    // char *token;
+                    // char bufferTemp[SIZE];
+                    memset(command, '\0', strlen(command)*sizeof(char));
+                    n = read(fd, command, 4);
+                    command[4] = '\0';
+
+                    memset(uid, '\0', strlen(uid)*sizeof(char));
+                    n = read(fd, uid, 6); // XXXXX_ reads UID
+                    uid[5] = '\0'; 
+
+                    char path[SIZE];
+                    strcpy(path, dirName);
+                    strcat(path, uid);
+                    printf("path: %s.\n", path);
+
+                    int error = mkdir(path, 0777);
+
 
                     if (n == 0) {
                         getpeername(fd, (struct sockaddr*)&addr, (socklen_t*)&addrlen);
@@ -228,27 +343,47 @@ int main(int argc, char* argv[]) {
                     else {
                         char *token = strtok(buffer, " ");
                         strcpy(command, token);
+                        
 
-                        if (strcmp(command, "LST") == 0) {
+                        if (strcmp(command, "LST ") == 0) {
+                            // char status[4];
+                            //already read command and uid                            
+                            memset(uid, '\0', strlen(uid)*sizeof(char));
+                            n = read(fd, tid, 5); // XXXX\n reads TID
+                            if (tid[4] != '\n') {
+                                // send RLS ERR to user
+                                n = 0;
+                                memset(buffer, '\0', strlen(buffer)*sizeof(char));
+                                strcpy(buffer, "RLS ERR\n");
+                                while (n != strlen(buffer)) {
+                                    n += send(fd, &buffer[n], strlen(buffer)-n, 0);
+                                }
+                            }
+                            tid[4] = '\0';
+
+                            // send to AS ->> VLD UID TID
+                            memset(buffer, '\0', strlen(buffer)*sizeof(char));
+                            sprintf(buffer, "VLD %s %s\n", uid, tid);
+
+                            printf("send to AS: %s", buffer);
+
+                            n = sendto(udpClientSocket, buffer, strlen(buffer), 0, res_udp->ai_addr, res_udp->ai_addrlen);
+
+                            createFdFile(uid, fd);
+                            
+                            continue;
+                        }
+                        else if (strcmp(command, "RTV ") == 0) {
+                        }
+                        else if (strcmp(command, "UPL ") == 0) {
                             token = strtok(NULL, " ");
                             strcpy(check, token);
+                        }
+                        else if (strcmp(command, "DEL ") == 0) {
 
                         }
-                        else if (strcmp(command, "RTV") == 0) {
-                            token = strtok(NULL, " ");
-                            strcpy(check, token);
-                        }
-                        else if (strcmp(command, "UPL") == 0) {
-                            token = strtok(NULL, " ");
-                            strcpy(check, token);
-                        }
-                        else if (strcmp(command, "DEL") == 0) {
-                            token = strtok(NULL, " ");
-                            strcpy(check, token);
-                        }
-                        else if (strcmp(command, "REM") == 0) {
-                            token = strtok(NULL, " ");
-                            strcpy(check, token);
+                        else if (strcmp(command, "REM ") == 0) {
+
                         }
                         else
                         {
@@ -257,9 +392,23 @@ int main(int argc, char* argv[]) {
 
                         strcpy(buffer,"VLD");
 
-                        /*send confirmation message to AS*/
-                        n = sendto(udpClientSocket, buffer, strlen(buffer), 0, (struct sockaddr*) &addr_udp, addrlen_udp);
-                            if (n == -1)/*error*/exit(1);   
+                        time_t start, end;
+                        double elapsed;
+                    
+                        time(&start);  /* start the timer */
+                    
+                        do {
+                            time(&end);
+                    
+                            elapsed = difftime(end, start);
+
+                            /*send confirmation message to AS*/
+                            n = sendto(udpClientSocket, buffer, strlen(buffer), 0, (struct sockaddr*) &addr_udp, addrlen_udp);
+                                if (n == -1) /*error*/ exit(1);   
+                                else
+                                    elapsed = 5;
+                        } while(elapsed < 5);  /* run for ten seconds */
+                               
                     }
                     memset(buffer, '\0', SIZE * sizeof(char));    
                 }

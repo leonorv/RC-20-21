@@ -15,6 +15,7 @@
 #include <fstream>
 #include <string> 
 #include <sys/stat.h> 
+#include <time.h>
 
 using namespace std;
 
@@ -45,8 +46,7 @@ ssize_t n, nread, nw;
 char buffer[SIZE], command[SIZE], password[SIZE], uid[SIZE], *ptr, rid[SIZE], fop;
 int connectedUsers = 0;
 int fdClients[maxUsers];
-char dirName[SIZE];
-char pdport[SIZE], pdip[SIZE];
+char dirName[SIZE], pdport[SIZE], pdip[SIZE];;
 
 void processInput(int argc, char* const argv[]) {
     if (argc%2 != 1) {
@@ -63,6 +63,41 @@ void processInput(int argc, char* const argv[]) {
             continue;
         }
     }
+}
+
+void Client_Server_Send(int udpClientSocket, char msg[SIZE]){
+    time_t start, end;
+    double elapsed;
+
+    time(&start);  /* start the timer */
+
+    do {
+        time(&end);
+
+        elapsed = difftime(end, start);
+        int n = sendto(udpServerSocket, toSend, strlen(toSend), 0, (struct sockaddr*) &addr_us, addrlen_us);
+            if (n == -1) perror("sendto udp server socket fs");
+            else
+                elapsed = 5;
+    } while(elapsed < 5);  /* run for five seconds */
+}
+
+void Server_Client_Send(int udpClientSocket, char msg[SIZE]){
+    time_t start, end;
+    double elapsed;
+
+    time(&start);  /* start the timer */
+
+    do {
+        time(&end);
+
+        elapsed = difftime(end, start);
+        int n = sendto(udpClientSocket, msg, strlen(toSend), 0, res_uc->ai_addr, res_uc->ai_addrlen);
+          if (n == -1)
+              perror("VLC send");
+          else
+              elapsed = 5;
+    } while(elapsed < 5);  /* run for five seconds */
 }
 
 int setupUDPClientSocket(char PDIP[SIZE], char PDport[SIZE]) {
@@ -92,7 +127,6 @@ void setupUDPServerSocket() {
     if (bind(udpServerSocket, res_us->ai_addr, res_us->ai_addrlen) < 0)  { perror("bind udp server socket"); exit(1); }
 }
 
-
 void setupTCPServerSocket() {
     tcpServerSocket = socket(AF_INET, SOCK_STREAM, 0);//TCP socket
         if (tcpServerSocket == -1) { perror("tcp server socket"); exit(1); }
@@ -106,7 +140,7 @@ void setupTCPServerSocket() {
 }
 
 int checkRegisterInput(char buffer[SIZE]) {    
-    char filename[SIZE], password[SIZE], uid[SIZE], pdip[SIZE], pdport[SIZE], driName[SIZE];
+    char filename[SIZE], password[SIZE], uid[SIZE], pdip[SIZE], pdport[SIZE], dirName[SIZE];
 
     sscanf(buffer, "REG %[0-9] %[0-9a-zA-Z] %[0-9.] %[0-9]\n", uid, password, pdip, pdport);
     if (strlen(uid) == 1 || strlen(uid) != 5) return 0;
@@ -205,6 +239,11 @@ int checkUnregisterInput(char buffer[SIZE]) {
         strcpy(filename, dirName);
         strcat(filename, "/fd.txt");   
         remove(filename); /* remove fd.txt */
+        rmdir(dirName);
+        memset(filename, '\0', SIZE * sizeof(char));
+        strcpy(filename, dirName);
+        strcat(filename, "/tid.txt");   
+        remove(filename); /* remove tid.txt */
         rmdir(dirName);
         // more files
         return 1;    
@@ -461,6 +500,7 @@ int checkAuthenticationInput(char buffer[SIZE]) {
 
 int main(int argc, char* argv[]) {
     int n, totalRead;
+
     if (gethostname(ASIP ,SIZE) == -1)
         fprintf(stderr,"error: %s\n", strerror(errno));
 
@@ -569,9 +609,23 @@ int main(int argc, char* argv[]) {
                     continue;
                 }
                 
+                time_t start, end;
+                double elapsed;
+            
+                time(&start);  /* start the timer */
+            
+                do {
+                    time(&end);
+            
+                    elapsed = difftime(end, start);
+                    /*send confirmation message to AS*/
+                    n = sendto(udpServerSocket, buffer, strlen(buffer), 0, (struct sockaddr*) &addr_us, addrlen_us);
+                        if (n == -1) { perror("sendto udp server socket"); continue; }
+                        else
+                            elapsed = 5;
+                } while(elapsed < 5);  /* run for ten seconds */
+
                 /* sends ok or not ok to pd or fs */
-                n = sendto(udpServerSocket, buffer, strlen(buffer), 0, (struct sockaddr*) &addr_us, addrlen_us);
-                if (n == -1) { perror("sendto udp server socket"); continue; }
             }
             else if (FD_ISSET(tcpServerSocket, &readfds)) {
                 /*===========================================

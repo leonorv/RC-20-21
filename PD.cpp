@@ -10,6 +10,7 @@
 #include <string.h>
 #include <errno.h>
 #include <iostream>
+#include <time.h>
 
 using namespace std;
 
@@ -20,6 +21,11 @@ extern int errno;
 
 char PDIP[SIZE], PDport[SIZE] = "57030", ASport[SIZE] = "58030", ASIP[SIZE];
 char fixedReg[SIZE];
+
+struct addrinfo hints_c, hints_s, *res_c, *res_s;
+socklen_t addrlen_c, addrlen_s;
+struct sockaddr_in addr_c, addr_s;
+ssize_t n;
 
 void processInput(int argc, char* const argv[]) {
     if (argc < 2)
@@ -51,17 +57,48 @@ void processInput(int argc, char* const argv[]) {
     strcat(fixedReg, "\n");
 }
 
+void Client_Server_Send(int udpClientSocket, char msg[SIZE]){
+    time_t start, end;
+    double elapsed;
+
+    time(&start);  /* start the timer */
+
+    do {
+        time(&end);
+
+        elapsed = difftime(end, start);
+        /*send confirmation message to AS*/
+        int n = sendto(udpClientSocket, msg, strlen(msg), 0, res_c->ai_addr, res_c->ai_addrlen);
+            if (n == -1 ) perror("error on sendto"); 
+            else
+                elapsed = 5;
+    } while(elapsed < 5);  /* run for five seconds */
+}
+
+void Server_Client_Send(int udpServerSocket, char buffer[SIZE]){
+    time_t start, end;
+    double elapsed;
+
+    time(&start);  /* start the timer */
+
+    do {
+        time(&end);
+
+        elapsed = difftime(end, start);
+        /*send confirmation message to AS*/
+        n = sendto(udpServerSocket, buffer, strlen(buffer), 0, (struct sockaddr*) &addr_s, addrlen_s);
+                if (n == -1) { perror("sendto udp server socket"); exit(1); } 
+            else
+                elapsed = 5;
+    } while(elapsed < 5);  /* run for five seconds */
+}
+
 int main(int argc, char* argv[]){
     int udpServerSocket, udpClientSocket, afd = 0, errcode_c,errcode_s,fd;
     fd_set readfds;
     int maxfd, retval;
-    ssize_t n;
-    socklen_t addrlen_c, addrlen_s;
-    struct addrinfo hints_c, hints_s, *res_c, *res_s;
-    struct sockaddr_in addr_c, addr_s;
     char buffer[SIZE], msg[SIZE];
     char command[SIZE], uid[SIZE], uidTemp[SIZE], password[SIZE], passwordTemp[SIZE], filename[SIZE], vc[SIZE], op_name[SIZE], fop[SIZE];
-
 
     if (gethostname(ASIP, SIZE) == -1)
         fprintf(stderr, "error: %s\n", strerror(errno));
@@ -125,15 +162,14 @@ int main(int argc, char* argv[]){
                     /*====================================================
                     Free data structures and close socket connections
                     ====================================================*/
-                    // registered = false;
+
                     strcpy(msg, "UNR ");
                     strcat(msg, uid);
                     strcat(msg, " ");
                     strcat(msg, password);
                     strcat(msg, "\n");
 
-                    int n = sendto(udpClientSocket, msg, strlen(msg), 0, res_c->ai_addr, res_c->ai_addrlen);
-                    if (n == -1 ) perror("error on sendto");
+                    Client_Server_Send(udpClientSocket, msg);
                 }
                 else {
                     /*====================================================
@@ -155,10 +191,9 @@ int main(int argc, char* argv[]){
                     strcat(strcat(strcat(strcpy(buffer, "REG "), uidTemp), " "), passwordTemp);
                     strcat(strcat(buffer, " "), fixedReg);   
 
-                    printf("sending to as in client socket: %s\n", buffer);   
+                    printf("sending to as in client socket: %s\n", buffer);  
 
-                    n = sendto(udpClientSocket, buffer, strlen(buffer), 0, res_c->ai_addr, res_c->ai_addrlen);
-                        if (n == -1)/*error*/exit(1);     
+                    Client_Server_Send(udpClientSocket, buffer); 
                 }
             }
             if (FD_ISSET(udpClientSocket, &readfds)) {
@@ -193,11 +228,12 @@ int main(int argc, char* argv[]){
                     printf("Unregistration unsuccessful\n");  
                 }
                 else {
-                    freeaddrinfo(res_c);
-                    freeaddrinfo(res_s);
-                    close(udpClientSocket);
-                    close(udpServerSocket);
-                    exit(1);
+                    //freeaddrinfo(res_c);
+                    //freeaddrinfo(res_s);
+                    //close(udpClientSocket);
+                    //close(udpServerSocket);
+                    //exit(1);
+                    printf("ERR\n");  
                 }
                 /* reset buffer */
                 memset(buffer, '\0', SIZE * sizeof(char));
@@ -215,7 +251,6 @@ int main(int argc, char* argv[]){
                 char *token = strtok(buffer, " ");
                 strcpy(command, token);
 
-
                 if (strcmp(command, "VLC") == 0) {
                     token = strtok(NULL, " ");
                     strcpy(uidTemp, token);
@@ -229,7 +264,7 @@ int main(int argc, char* argv[]){
                     } else {
                         filename[0] = '\0';
                     }
-                
+
                     if (strcmp(fop, "U") == 0) {
                         strcpy(op_name, "upload:");
                     } 
@@ -269,9 +304,11 @@ int main(int argc, char* argv[]){
                         strcat(buffer, " NOK\n");
                     }
                 }
-                n = sendto(udpServerSocket, buffer, strlen(buffer), 0, (struct sockaddr*) &addr_s, addrlen_s);
-                    if (n == -1) { perror("sendto udp server socket"); exit(1); } 
-
+                else {
+                    strcpy(buffer, "ERR\n");
+                }
+                
+                Server_Client_Send(udpServerSocket, buffer);
             }
         }
     }
