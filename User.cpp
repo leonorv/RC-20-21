@@ -67,7 +67,7 @@ void treatRLS() {
     char *token;
 
     FILE* tempFile;
-    tempFile = fopen("temp.txt", "rw");    
+    tempFile = fopen("temp.txt", "w");    
     if (!tempFile)
         perror("fopen");
     int size = 0;
@@ -81,6 +81,11 @@ void treatRLS() {
         n = read(tcpSocket_FS, buffer, SIZE);
     }
     fwrite("\0", sizeof(char), sizeof(char), tempFile);
+    fclose(tempFile);
+    tempFile = fopen("temp.txt", "r");    
+    if (!tempFile)
+        perror("fopen");
+
     
     char fileBuffer[size + 1];
     
@@ -127,10 +132,13 @@ void treatRRT() {
     int size;
     strcat(path, filename);
 
+    printf("hjk\n");
+
 
     //RRT status [Fsize data]
     // char bufferTemp[4];
     int n = read(tcpSocket_FS, buffer, 3);
+
     if (strcmp(buffer, "OK ") != 0) { //if status != OK
         if (strcmp(buffer, "EOF") == 0) {
         printf("File not available\n");
@@ -160,18 +168,15 @@ void treatRRT() {
 
     size = atoi(fsize);
 
-    int totalRead = 0;
-    memset(buffer, '\0', sizeof(char) * strlen(buffer));
     FILE *f;
-    f = fopen(path, "w");
-    n = read(tcpSocket_FS, buffer, SIZE);
-    while (totalRead < size) {
-        totalRead += n;
-        fwrite(buffer, sizeof(char), sizeof(buffer), f);
-        memset(buffer, '\0', sizeof(char) * strlen(buffer));
+    f = fopen(path, "wb");
+    do {
+        memset(buffer, '\0', strlen(buffer));
         n = read(tcpSocket_FS, buffer, SIZE);
+        size -= n;
+        fwrite(buffer, 1, n, f);
+    } while (size > 0);
 
-    }
 
     fclose(f);
 
@@ -308,7 +313,6 @@ int main(int argc, char* const argv[]) {
                     }
                     else if(strcmp(command, "upload") == 0 || strcmp(command, "u") == 0 ||
                             strcmp(command, "retrieve") == 0 || strcmp(command, "r") == 0 ||
-    
                             strcmp(command, "delete") == 0 || strcmp(command, "d") == 0 ||
                             strcmp(command, "remove\n") == 0 || strcmp(command, "x\n") == 0 || 
                             strcmp(command, "list\n") == 0 || strcmp(command, "l") == 0) {
@@ -423,8 +427,10 @@ int main(int argc, char* const argv[]) {
                 // char readBuffer[SIZE];
                 // ofstream tempFile;
                 // FILE *tempFile;
-
+                memset(command, '\0', strlen(command)*sizeof(char));
                 int n = read(tcpSocket_FS, command, 4);
+                command[4] = '\0';
+                printf("command: %s.\n", command);
 
 
                 //strcpy(bufferTemp, buffer);
@@ -442,11 +448,12 @@ int main(int argc, char* const argv[]) {
 
                // printf("final buffer: %s\n", buffer); fflush(stdout);
 
-                if (strcmp(command, "RLS \n") == 0) {
+                if (strcmp(command, "RLS ") == 0) {
                     treatRLS();
                 }
-                else if (strcmp(command, "RRT \n") == 0) {
+                else if (strcmp(command, "RRT ") == 0) {
                     //fwrite(fileBuffer, buffer);
+
                     treatRRT();
                  
                 }
