@@ -59,34 +59,18 @@ void processInput(int argc, char* const argv[]) {
     }
 }
 
-void treatRLS() {
+void treatRLS(char buffer[100], int n) {
     char command[SIZE];
-    char buffer[SIZE];
     char fname[SIZE];
     int n_files, fsize;
     char *token;
+    char bufferTemp[100];
 
-    FILE* tempFile;
-    tempFile = fopen("temp.txt", "rw");    
-    if (!tempFile)
-        perror("fopen");
-    int size = 0;
+    strcpy(bufferTemp, buffer);
+    token = strtok(buffer, " ");
+    char* contents_chopped = bufferTemp + (strlen(token)+2);
 
-    int n = read(tcpSocket_FS, buffer, SIZE);
-    while (n != 0) {
-        printf("buffer: %s\n", buffer);
-        size += n;
-        fwrite(buffer, sizeof(char), sizeof(buffer), tempFile);
-        memset(buffer, '\0', n * sizeof(char));
-        n = read(tcpSocket_FS, buffer, SIZE);
-    }
-    fwrite("\0", sizeof(char), sizeof(char), tempFile);
-    
-    char fileBuffer[size + 1];
-    
-    if (!fgets(fileBuffer, (size)*sizeof(char), tempFile)) perror("oops");
-    token = strtok(fileBuffer, " "); //token has n_files or error
-
+    n -= (strlen(token)+2);
 
     if (strcmp(token, "EOF\n") == 0) {
         printf("No files to list\n");
@@ -103,54 +87,87 @@ void treatRLS() {
 
     n_files = atoi(token);
 
-    printf("%d files:\n", n_files);
+    char path[SIZE] = "files/";
+    strcat(path, "temp.txt");
+
+    FILE *f;
+    f = fopen(path, "w");
+
+    fwrite(contents_chopped, sizeof(char), sizeof(bufferTemp), f);
+    memset(bufferTemp, '\0', sizeof(char) * strlen(bufferTemp));
     
-    for (int i = 0; i < n_files; i++) {
-        char size[10];
-        token = strtok(NULL, " ");
-        strcpy(fname, token);
-        token = strtok(NULL, " ");
-        strcpy(size, token);
-        fsize = atoi(size);
-        printf("%d - %s %d\n", i + 1, fname, fsize);
+    while( (n = read(tcpSocket_FS, bufferTemp, 100)) != 0){
+            fwrite(bufferTemp, sizeof(char), sizeof(bufferTemp), f);
+            memset(bufferTemp, '\0', sizeof(char) * strlen(bufferTemp));
     }
-    fclose(tempFile);
-    remove("temp.txt");
+    
+    fclose(f);
+
+    FILE *fptr;
+    fptr = fopen(path, "r");
+    char c;
+    int space_count=0;
+    int i = 1;
+
+    c = fgetc(fptr); 
+    printf("%d - ", i);
+    i++;
+    while (c != EOF) 
+    { 
+        printf("%c", c); 
+        c = fgetc(fptr); 
+
+        if (c == '\40' && space_count<2 )
+        {
+            space_count++;
+        }
+        else if(space_count ==2)
+        {
+            printf("\n");
+            space_count = 0;
+            printf("%d - ", i);
+            i++;
+        }
+    } 
+    fclose(fptr);
+    remove(path);
 }
 
-void treatRRT() {
-    //RRT status [Fsize data]
+void treatRRT(char buffer[500]) {
     char command[SIZE];
-    char buffer[SIZE];
     char fsize[10];
     char path[SIZE] = "files/";
     int size;
+    char bufferTemp[500];
     strcat(path, filename);
+    char *token;
 
+    strcpy(bufferTemp, buffer);
+    token = strtok(buffer, " ");
 
-    //RRT status [Fsize data]
-    // char bufferTemp[4];
-    int n = read(tcpSocket_FS, buffer, 3);
-    if (strcmp(buffer, "OK ") != 0) { //if status != OK
-        if (strcmp(buffer, "EOF") == 0) {
+    if (strcmp(token, "OK") != 0) { //if status != OK
+        if (strcmp(token, "EOF") == 0) {
         printf("File not available\n");
             return;
         }
-        else if (strcmp(buffer, "NOK") == 0) {
+        else if (strcmp(token, "NOK") == 0) {
             printf("No content available for this user\n");
             return;
         }
-        else if (strcmp(buffer, "INV") == 0) {
+        else if (strcmp(token, "INV") == 0) {
             printf("AS validation error\n");
             return;
         }
-        else if (strcmp(buffer, "ERR") == 0) {
+        else if (strcmp(token, "ERR\n") == 0) {
             printf("Invalid request\n");
             return;
         }
-
     }
-    memset(buffer, '\0', sizeof(char) * strlen(buffer));
+
+    char* contents_chopped = bufferTemp + (strlen(token)+2);
+
+    printf("buffer:%s",contents_chopped);
+     
     n = read(tcpSocket_FS, buffer, 1);
     while (strcmp(buffer, " ") != 0) {
         strcpy(fsize, buffer);
@@ -162,23 +179,18 @@ void treatRRT() {
 
     int totalRead = 0;
     memset(buffer, '\0', sizeof(char) * strlen(buffer));
+
     FILE *f;
     f = fopen(path, "w");
     n = read(tcpSocket_FS, buffer, SIZE);
     while (totalRead < size) {
         totalRead += n;
-        fwrite(buffer, sizeof(char), sizeof(buffer), f);
+        //fwrite(buffer, sizeof(char), sizeof(buffer), f);
         memset(buffer, '\0', sizeof(char) * strlen(buffer));
         n = read(tcpSocket_FS, buffer, SIZE);
 
     }
-
     fclose(f);
-
-    printf("File name: %s\n", filename);
-    printf("Path: %s\n", path);
-
-    
 }
 
 int setTCPClientFS() {
@@ -282,8 +294,9 @@ int main(int argc, char* const argv[]) {
                             memset(filenameTemp, '\0', strlen(filenameTemp) * sizeof(char));
                             rID = rand() % 9000 + 1000;
                             sscanf(msg, "req %s %s\n", fop, filenameTemp);
-                            if (strlen(filenameTemp) != 0)
+                            if (strlen(filenameTemp) != 0){
                                 sprintf(ptr, "REQ %s %d %s %s\n", uid, rID, fop, filenameTemp);
+                            }
                             else 
                                 sprintf(ptr, "REQ %s %d %s\n", uid, rID, fop);
 
@@ -322,12 +335,10 @@ int main(int argc, char* const argv[]) {
                             //sprintf(ptr, "UPL %s %d %s %s\n", uid, tid, filenameTemp, Fsize);
 
                         }
-                        else if (strcmp(command, "retrieve") == 0 || strcmp(command, "r") == 0) {
+                        else if (strcmp(command, "retrieve\n") == 0 || strcmp(command, "r") == 0) {
                             //RTV UID TID Fname
                             sprintf(ptr, "RTV %s %d %s\n", uid, tid, filenameTemp);
-                            // printf()
-                            
-                        
+                            printf("%s", ptr);
                         }
                         else if (strcmp(command, "delete") == 0 || strcmp(command, "d") == 0) {
                             //sprintf(ptr, "RTV %s %d %s\n", uid, tid, filenameTemp);
@@ -342,7 +353,6 @@ int main(int argc, char* const argv[]) {
                         }
                         nbytes = strlen(ptr);
                         nleft = nbytes;
-
 
                         n = write(tcpSocket_FS, ptr, nleft);
                         if (n <= 0) { perror("tcp write"); exit(1); }
@@ -424,31 +434,20 @@ int main(int argc, char* const argv[]) {
                 // ofstream tempFile;
                 // FILE *tempFile;
 
-                int n = read(tcpSocket_FS, command, 4);
+                int n = read(tcpSocket_FS, buffer, 100);
 
+                strcpy(bufferTemp, buffer);
+                token = strtok(buffer, " ");
+                strcpy(command, token);
 
-                //strcpy(bufferTemp, buffer);
-                //token = strtok(buffer, " ");
-                //strcpy(command, token);
+                char* contents_chopped = bufferTemp + 4;
+                n -= 4;
 
-                // while (n != 0) {
-                //     tempFile = fopen("temp.txt", "w");
-                //     fwrite (buffer , sizeof(char), sizeof(buffer), tempFile);
-                //     memset(buffer, '\0', strlen(buffer) * sizeof(char));
-                //     n = read(tcpSocket_FS, buffer, SIZE);
-                // }   
-
-                // fclose(tempFile);
-
-               // printf("final buffer: %s\n", buffer); fflush(stdout);
-
-                if (strcmp(command, "RLS \n") == 0) {
-                    treatRLS();
+                if (strcmp(command, "RLS") == 0) {
+                    treatRLS(contents_chopped, n);
                 }
-                else if (strcmp(command, "RRT \n") == 0) {
-                    //fwrite(fileBuffer, buffer);
-                    treatRRT();
-                 
+                else if (strcmp(command, "RRT") == 0) {
+                    treatRRT(contents_chopped);
                 }
                 else if (strcmp(command, "RUP ") == 0) {
                  

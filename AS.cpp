@@ -451,7 +451,7 @@ void treatVLDInput(char buffer[SIZE]) {
             strcat(toSend, " ");
             strcat(toSend, fname.c_str());
         }
-        strcat(toSend, '\n');
+        strcat(toSend, "\n");
     
         /* sends ok or not ok to fs */
         int n = sendto(udpServerSocket_FS, toSend, strlen(toSend), 0, (struct sockaddr*) &addr_usf, addrlen_usf);
