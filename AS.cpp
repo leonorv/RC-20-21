@@ -33,7 +33,7 @@ extern int errno;
 
 char ASport[SIZE] = "58030", ASIP[SIZE], PDport[SIZE] = "57030", PDIP[SIZE] , FSport[SIZE] = "59030", FSIP[SIZE];
 
-int verbose_flag = -1;
+int verbose_flag = 1;//alterar para -1
 const int maxUsers = 5;
 FILE *fptr;
 int udpServerSocket, tcpServerSocket, udpClientSocket;
@@ -50,16 +50,15 @@ int fdClients[maxUsers];
 char dirName[SIZE], pdport[SIZE], pdip[SIZE];
 
 void VerboseMode_SET(int test){
-     verbose_flag = test;
+    verbose_flag = test;
 }
 
- void print_UserData(int uid){
+void print_UserData(char uid[SIZE]){
     char filename[SIZE];
     strcpy(dirName, "users/");
     strcpy(filename, dirName);
-    strcat(filename, to_string(uid).c_str());
-    strcat(filename, "/reg.txt");
-    string tempIO;
+    strcat(filename, uid);
+    strcat(filename, "/connect.txt");
     string inFileIP;
     string inFilePort;
     ifstream inFile;
@@ -217,7 +216,7 @@ int checkRegisterInput(char buffer[SIZE]) {
     userCred << pdport;
     userCred.close();
 
-    if (verbose_flag == -1){
+    if (verbose_flag == 1){
         printf("PD: new user, UID=%s\n", uid);
         printf("From: %s - %s\n", pdip, pdport);
     }
@@ -270,6 +269,10 @@ int checkUnregisterInput(char buffer[SIZE]) {
         strcat(filename, "/tid.txt");   
         remove(filename); /* remove tid.txt */
         rmdir(dirName);
+        memset(filename, '\0', SIZE * sizeof(char));
+        strcpy(filename, dirName);
+        strcat(filename, "/connect.txt");   
+        remove(filename); /* remove tid.txt */
         // more files
         return 1;    
     }
@@ -326,9 +329,9 @@ int checkLoginInput(char buffer[SIZE], int fd) {
         userConnect << '\n';
         userConnect.close();
 
-        if (verbose_flag == -1){
+        if (verbose_flag == 1){
             printf("User: login ok, UID=%s\n", uid);
-            printf("From: %s - %d\n",inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
+            print_UserData(uid);
         }
         return 1;    
     }
@@ -439,7 +442,6 @@ int treatRequestInput(char buffer[SIZE], int fdIndex) {
         userTid << fname;
         userTid << '\n';
     }
-    printf("vc: %s\n", vc);
     userTid << string(vc);
     userTid << '\n';
     userTid.close();
@@ -454,14 +456,14 @@ int treatRequestInput(char buffer[SIZE], int fdIndex) {
     userFD.close();
 
     if (strcmp(fop, "L") != 0 && strcmp(fop, "X") != 0) 
-        if (verbose_flag == -1){
+        if (verbose_flag == 1){
             printf("User: %s req, UID=%s, file: %s, RID=%s, VC=%s\n", op_name, uid, fname, rid, vc);
-            printf("From: %s - %d\n",inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
+            print_UserData(uid);
         }
     else 
-        if (verbose_flag == -1){
+        if (verbose_flag == 1){
             printf("User: %s req, UID=%s, RID=%s, VC=%s\n", op_name, uid, rid, vc);
-            printf("From: %s - %d\n",inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
+            print_UserData(uid);
         }
     return 1;
 }
@@ -522,7 +524,6 @@ void treatVLDInput(char buffer[SIZE]) {
     f.close();
     remove(path);
 
-    printf("path - %s\n", path);
 
     //CNF UID TID Fop [Fname]
     strcpy(toSend, "CNF ");
@@ -530,7 +531,6 @@ void treatVLDInput(char buffer[SIZE]) {
     strcat(toSend, " ");
     strcat(toSend, tid);
     strcat(toSend, " ");
-    printf("tid do fs: %s, tid do ficheiro do user: %s.\n", tid, fileTID.c_str());
     if (strcmp(tid, fileTID.c_str()) != 0) {
         printf("incorrect tid");
         strcat(toSend, "E"); //error fop
@@ -568,7 +568,6 @@ int checkAuthenticationInput(char buffer[SIZE]) {
     }
     getline(f, fileVC);
     // getline(f, fileTID);
-    printf("fvc: %s, vc: %s\n", fileVC.c_str(), vc);
 
     f.close();
     
@@ -765,8 +764,6 @@ int main(int argc, char* argv[]) {
                             while (n != strlen(buffer)) {
                                 n += send(fd, &buffer[n], strlen(buffer) - n, 0);
                             }
-
-
                             
                         }
                         else if (strcmp(command, "AUT") == 0) {
@@ -779,7 +776,6 @@ int main(int argc, char* argv[]) {
                                 strcat(dirName, to_string(res).c_str());
                                 strcat(dirName, "/tid.txt");
                                 fstream userTid; 
-                                printf("dirname: %s\ntid_temp: %d\n", dirName, tid_temp);
                                 userTid.open(dirName, ios::app | ios::out);
                                 userTid << to_string(tid_temp);
                                 userTid.close();
@@ -801,19 +797,19 @@ int main(int argc, char* argv[]) {
                                 strcat(buffer, tid);
                                 strcat(buffer, "\n");
 
+                                string s_per = to_string(res);
+                                char per[SIZE];
+                                strcpy(per, s_per.c_str());
+
                                 //aceder ao file tid para recuperar fop e fname
                                 if (strcmp(inFileFOP.c_str(), "L") != 0 && strcmp(inFileFOP.c_str(), "X") != 0)
-                                    if (verbose_flag == -1){
-                                        printf("User: UID=%d, %s, %s, TID=%s\n", res, inFileFOP.c_str(), inFileFNAME.c_str(), tid);
-                                        printf("From: %s - %d\n",inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
-                                        
+                                    if (verbose_flag == 1){
+                                        print_UserData(per);                                     
                                     }
                                 else 
-                                    if (verbose_flag == -1){
-                                        printf("User: UID=%d, %s, TID=%s\n", res, inFileFOP.c_str(), tid);
-                                        printf("From: %s - %d\n",inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
-                                     
-                                    }
+                                    if (verbose_flag == 1){
+                                        print_UserData(per);
+                                    }  
                             }
                             else 
                                 strcpy(buffer, "RAU 0\n");
