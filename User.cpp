@@ -127,7 +127,7 @@ void treatRLS() {
 }
 
 void treatRRT() {
-    //RRT status [Fsize data]
+    // RRT status [Fsize data]
     char fileBuff[SIZE];
     char buff[SIZE];
     char fsize[10];
@@ -137,7 +137,7 @@ void treatRRT() {
     strcat(path, "\0");
 
 
-    int n = read(tcpSocket_FS, buff, 3);
+    int n = read(tcpSocket_FS, buff, 3); // read status
 
     if (strcmp(buff, "OK ") != 0) { //if status != OK
         if (strcmp(buff, "EOF") == 0) {
@@ -160,14 +160,14 @@ void treatRRT() {
     }
 
     do {
-        memset(buff, '\0', sizeof(char) * strlen(buff));
+        memset(buff, ' ', sizeof(char) * strlen(buff));
         n = read(tcpSocket_FS, buff, 1);
         buff[1] = '\0';
         strcat(fsize, buff);
-    }   while (strcmp(buff, " ") != 0);
+        } while (strcmp(buff, " ") != 0);
 
     size = atoi(fsize);
-    printf("size: %d. fsize %s.\n", size, fsize); 
+    printf("size: %d. fsize %s.\n", size, fsize);
 
     printf("File name: %s\n", filename);
     printf("Path: %s\n", path);
@@ -181,7 +181,9 @@ void treatRRT() {
         memset(fileBuff, '\0', strlen(fileBuff));
     } while (size > 0);
 
-    fclose(f);    
+    fclose(f);     
+
+    printf("File retrieved with success!\n");
 }
 
 void treatRUP() {
@@ -464,6 +466,7 @@ int main(int argc, char* const argv[]) {
                     }
                     else {
                         /* continue if incorrect command */
+                        printf("command: %s\n", command);
                         perror("invalid request");
                         continue;
                     }

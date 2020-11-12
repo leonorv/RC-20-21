@@ -112,7 +112,6 @@ void treatRLS(int fd, char uid[6]) {
         struct stat st;
         stat(filename, &st);
         size = st.st_size;
-        printf("size of %s: %d\n", filename, size);
         s += to_string(size);
         s += " ";
         n_files++;
@@ -133,8 +132,6 @@ void treatRLS(int fd, char uid[6]) {
         return;
     }
 
-
-    printf("s: %s\n", s.c_str());
     // RLS_NFILES_[s]
     int buffersize = 3 + 1 + strlen(to_string(n_files).c_str()) + 1 + strlen(s.c_str());
     char buffer[buffersize];
@@ -151,9 +148,7 @@ void treatRLS(int fd, char uid[6]) {
             perror("error on send fs to user 3");
             break;
         }
-        printf("n: %ld\n", n);
     }
-
 }
 
  int checkFilename(char filename[SIZE]) { //returns 1 if filename is ok
@@ -170,7 +165,6 @@ void treatRLS(int fd, char uid[6]) {
         isalpha(buffer[strlen(buffer)-3]) && 
         buffer[strlen(buffer)-4]=='.'))
         return 0;
-    // printf("buffer: %s\n", buffer);
     return 1;
  }
 
@@ -184,8 +178,6 @@ void treatRLS(int fd, char uid[6]) {
     strcpy(path_to_filename, "FS_files/");
     strcat(path_to_filename, uid);
     strcat(path_to_filename, "/filename.txt");
-
-    printf("path to filename: %s\n", path_to_filename);
     
     string fname;
     ifstream fstream;
@@ -195,8 +187,6 @@ void treatRLS(int fd, char uid[6]) {
     remove(path_to_filename);
 
     strcpy(filename, fname.c_str());
-
-    printf("treat RRT: uid: %s, filename: %s\n", uid, filename);
 
     strcpy(path, "FS_files/");
     strcat(path, uid);
@@ -212,7 +202,6 @@ void treatRLS(int fd, char uid[6]) {
         }
     }
 
-    printf("nfiles: %d\n", n_files);
     if (n_files == 0) {
         char bufferError[SIZE] = "RRT NOK\n";
         int n = 0;        
@@ -224,8 +213,6 @@ void treatRLS(int fd, char uid[6]) {
     
     strcat(path, "/");
     strcat(path, filename);
-
-    printf("filename rrt: %s\n", filename);
     
     struct stat st;
     stat(path, &st);
@@ -241,25 +228,24 @@ void treatRLS(int fd, char uid[6]) {
         return;
     }
 
-
     FILE *f;
     f = fopen(path, "rb");
 
-    int buffersize = 3 + 1 + strlen(to_string(fsize).c_str());
+    int buffersize = 7 + strlen(to_string(fsize).c_str()) + 1;
     char firstBuffer[buffersize];
 
-    strcpy(firstBuffer, "RRT ");
+    strcpy(firstBuffer, "RRT OK ");
     strcat(firstBuffer, to_string(fsize).c_str());
     strcat(firstBuffer, " ");
     firstBuffer[buffersize] = '\0'; //'\n' sits on last space
 
-    printf("firstbuffer: %s\n", firstBuffer);
+    printf("firstBuffer: %s.\n", firstBuffer);
 
 
     int sum = 0;
     n = 0;
     while (sum < buffersize) {
-        n = send(fdClients[fd], &firstBuffer[sum], strlen(firstBuffer)-sum, 0);
+        n = write(fdClients[fd], &firstBuffer[sum], strlen(firstBuffer)-sum);
         sum += n;
         if (n < 0) {
             perror("error on send fs to user 1");
@@ -267,14 +253,12 @@ void treatRLS(int fd, char uid[6]) {
         }
     }
 
-    //just like user upload
     sum = 0;
     n = 0;
     do {
         char bufferTemp[1];
         memset(bufferTemp, '\0', sizeof(char));
         fread(bufferTemp, 1, 1, f);
-        //printf("buffertemp: %s\n", bufferTemp);
         n = write(fdClients[fd], bufferTemp, 1);
         sum += n;
         if (n < 0) {
@@ -397,8 +381,6 @@ int main(int argc, char* argv[]) {
                 if (n == -1)/*error*/exit(1);
                 buffer[n] = '\0';
 
-                printf("recebido do as: %s\n", buffer);
-
                 /* CNF UID TID Fop [Fname] */
                 sscanf(buffer, "%s %s %s %s %s\n", command, uid, tid, fop, fname);
 
@@ -406,11 +388,7 @@ int main(int argc, char* argv[]) {
                     fname[0] = '\0';
                 }
 
-                printf("command: %s\nuid: %s\nfop: %s\n", command, uid, fop);
-
                 if (strcmp(command, "CNF") == 0) {
-
-                    printf("recebeu cnf, fop: %s\n", fop);
 
                     int index = getUserFd(uid);
 
@@ -419,7 +397,6 @@ int main(int argc, char* argv[]) {
                     else if (strcmp(fop, "D") == 0) {
                     }
                     else if (strcmp(fop, "R") == 0) {
-                        printf("vai fazer treat RRT\n");
                         treatRRT(index, uid); ///
                     }
                     else if (strcmp(fop, "L") == 0) {
@@ -428,11 +405,11 @@ int main(int argc, char* argv[]) {
                     else if (strcmp(fop, "X") == 0) {
                     }
                     else if (strcmp(fop, "E") == 0) {
-                        // strcpy(buffer,"E"); // enviar par ao user RRT INV ou 
                     }
                     else {
                         printf("ERR\n");
-                    }  
+                    } 
+
                         
                     printf("operation validated\n");
                     //closing connection with user
@@ -463,113 +440,101 @@ int main(int argc, char* argv[]) {
                 fd = fdClients[i];
 
                 if (FD_ISSET(fd, &readfds)) { 
-                    //char buff[SIZE];
-                    //int n = 0;
-                    //n += read(fd, buff, SIZE); 
 
-                   // if (n == 0) {
-                   //     //getpeername(fd, (struct sockaddr*)&addr, (socklen_t*)&addrlen);
-                   //     close(fd);
-                   //     fdClients[i] = 0;
-                   //     continue;
-                   // }
-                    //else if (n == -1) { perror("fdclients read"); exit(1); }
-                    // char *token;
-                    // char bufferTemp[SIZE];
-                    memset(command, '\0', strlen(command)*sizeof(char));
-                    n = read(fd, command, 4);
-                    command[4] = '\0';
+                    char *token;
+                    char bufferTemp[500];
+                    char nome[SIZE];
 
-                    memset(uid, '\0', strlen(uid)*sizeof(char));
-                    n = read(fd, uid, 6); // XXXXX_ reads UID
-                    uid[5] = '\0'; 
+                    n = 0;
+                    do {
+                        n += read(fd, &buffer[n], SIZE - n); 
+                    } while (n != strlen(buffer));
+
+                    if (n == 0) {
+
+                        //Close the socket and mark as 0 in list for reuse
+                        close(fd);
+                        fdClients[i] = 0;
+                    }
+
+                    else if (n == -1) { perror("fdclients read"); exit(1); }
+                    else {
+
+                    strcpy(bufferTemp, buffer);
+                    token = strtok(buffer, " ");
+                    strcpy(command, token);
+                    char* contents_chopped = bufferTemp + 4;
+                    token = strtok(contents_chopped, " ");
+                    strcpy(uid, token);
+                    contents_chopped = contents_chopped + 6;
+                    token = strtok(contents_chopped, " ");
+                    strcpy(tid, token);
+                    contents_chopped = contents_chopped + 5;
 
                     char path[SIZE];
                     strcpy(path, dirName);
                     strcat(path, uid);
-                    printf("command: %s, uid: %s\n", command, uid); fflush(stdout);
 
                     int error = mkdir(path, 0777);
                       
 
-                        if (strcmp(command, "LST ") == 0) {
+                        if (strcmp(command, "LST") == 0) {
                             //already read command and uid                            
-                            n = read(fd, tid, 5); // XXXX\n reads TID
-                            if (tid[4] != '\n') {
-                                // send RLS ERR to user
-                                n = 0;
-                                memset(buffer, '\0', strlen(buffer)*sizeof(char));
-                                strcpy(buffer, "RLS ERR\n");
-                                while (n != strlen(buffer)) {
-                                    n += send(fd, &buffer[n], strlen(buffer)-n, 0);
-                                }
-                            }
-                            tid[4] = '\0';
 
                             // send to AS ->> VLD UID TID
                             memset(buffer, '\0', strlen(buffer)*sizeof(char));
                             sprintf(buffer, "VLD %s %s\n", uid, tid);
 
-                            printf("send to AS: %s", buffer);
-
                             Server_Client_Send(udpClientSocket, buffer);
 
-                            createFdFile(uid, i);
-                            
-                            //continue;
-                            close(fd);
-                            fdClients[i] = 0;
+                            createFdFile(uid, i); 
                         }
-                        else if (strcmp(command, "RTV ") == 0) {
+                        else if (strcmp(command, "RTV") == 0) {
                             //RTV UID TID Fname
                             //already read command and uid    
-                            // printf("RTV command: %s. uid: %s\n");                      
-                            n = read(fd, tid, 5); // XXXX\n reads TID
-                            if (tid[4] != '\n') {
-                                // send RTV ERR to user
-                                n = 0;
-                                memset(buffer, '\0', strlen(buffer)*sizeof(char));
-                                strcpy(buffer, "RTV ERR\n");
-                                while (n != strlen(buffer)) {
-                                    n += send(fd, &buffer[n], strlen(buffer)-n, 0);
-                                }
-                            }
-                            tid[4] = '\0';
+                           //
+                            token = strtok(contents_chopped, " ");
+                            strcpy(nome, token);
 
-                            char filename[SIZE];
-                            int sum = 0;
-                            n = 0;
-                            do {
-                                n = read(fd, &filename[sum], SIZE-sum);
-                                sum += n;
-                            } while (n > 0);
-                            filename[sum] = '\0';
-                            printf("filename: %s\n", filename);
+                            //if (tid[4] != '\n') {
+                            //    // send RTV ERR to user
+                            //    n = 0;
+                            //    memset(buffer, '\0', strlen(buffer)*sizeof(char));
+                            //    strcpy(buffer, "RTV ERR\n");
+                            //    while (n != strlen(buffer)) {
+                            //        n += send(fd, &buffer[n], strlen(buffer)-n, 0);
+                            //    }
+                            //}
+                            //tid[4] = '\0';
+
+                            //char filename[SIZE];
+                            //int sum = 0;
+                            //n = 0;
+                            //do {
+                            //    n = read(fd, &nome[sum], SIZE-sum);
+                            //    sum += n;
+                            //} while (n > 0);
+                            //nome[sum] = '\0';
                             
                             char path[SIZE];
                             strcpy(path, "FS_files/");
                             strcat(path, uid);
                             strcat(path, "/filename.txt");
-                            printf("path: %s\n", path);
 
                             ofstream fname(path);         
-                            fname << filename;
+                            fname << nome;
                             fname << '\n';
                             fname.close();
-    
                                                         // send to AS ->> VLD UID TID
                             memset(buffer, '\0', strlen(buffer)*sizeof(char));
                             sprintf(buffer, "VLD %s %s\n", uid, tid);
 
-                            printf("send to AS: %s", buffer);
-
                             Server_Client_Send(udpClientSocket, buffer);
 
                             createFdFile(uid, i);
-                            
-                            //continue;
                         }
                         else if (strcmp(command, "UPL ") == 0) {
+                            //UPL UID TID Fname Fsize data
                         }
                         else if (strcmp(command, "DEL ") == 0) {
 
@@ -580,7 +545,9 @@ int main(int argc, char* argv[]) {
                         else {
                             printf("ERR\n");
                         }  
-                        memset(buffer, '\0', SIZE * sizeof(char));    
+                    }
+                    
+                    memset(buffer, '\0', SIZE * sizeof(char));    
                     
                 }
             }

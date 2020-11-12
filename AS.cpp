@@ -697,7 +697,7 @@ int main(int argc, char* argv[]) {
                 ===========================================*/
                 addrlen_ts = sizeof(addr_ts);
                 if ((newfd = accept(tcpServerSocket, (struct sockaddr*)&addr_ts, &addrlen_ts)) == -1) { perror("accept tcp server socket"); exit(1); }
-
+ 
                 //add new socket to array of sockets  
                 for (int i = 0; i < maxUsers; i++) {   
                     //if position is empty  
