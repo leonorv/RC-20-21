@@ -191,7 +191,7 @@ int main(int argc, char* argv[]){
                     strcat(strcat(strcat(strcpy(buffer, "REG "), uidTemp), " "), passwordTemp);
                     strcat(strcat(buffer, " "), fixedReg);   
 
-                    printf("sending to as in client socket: %s\n", buffer);  
+                    // printf("sending to as in client socket: %s\n", buffer);  
 
                     Client_Server_Send(udpClientSocket, buffer); 
                 }
@@ -261,24 +261,30 @@ int main(int argc, char* argv[]){
                     if (strcmp(fop, "L\n") != 0 && strcmp(fop, "X\n") != 0) {
                         token = strtok(NULL, " ");
                         strcpy(filename, token);
+                        strcat(filename, "\0");
                     } else {
                         filename[0] = '\0';
                     }
 
                     if (strcmp(fop, "U") == 0) {
                         strcpy(op_name, "upload:");
+                        strcat(op_name, "\0");
                     } 
                     else if (strcmp(fop, "R") == 0) {
                         strcpy(op_name, "retrieve:");
+                        strcat(op_name, "\0");
                     } 
                     else if (strcmp(fop, "D") == 0) {
                         strcpy(op_name, "retrieve:");
+                        strcat(op_name, "\0");
                     } 
                     else if (strcmp(fop, "L\n") == 0) {
                         strcpy(op_name, "list\n");
+                        strcat(op_name, "\0");
                     }  
                     else if (strcmp(fop, "X\n") == 0) {
                         strcpy(op_name, "remove\n");
+                        strcat(op_name, "\0");
                     }
                     else{
                         perror("incorrect request command");

@@ -33,6 +33,7 @@ extern int errno;
 
 char ASport[SIZE] = "58030", ASIP[SIZE], PDport[SIZE] = "57030", PDIP[SIZE] , FSport[SIZE] = "59030", FSIP[SIZE];
 
+int verbose_flag = -1;
 const int maxUsers = 5;
 FILE *fptr;
 int udpServerSocket, tcpServerSocket, udpClientSocket;
@@ -46,7 +47,28 @@ ssize_t n, nread, nw;
 char buffer[SIZE], command[SIZE], password[SIZE], uid[SIZE], *ptr, rid[SIZE], fop;
 int connectedUsers = 0;
 int fdClients[maxUsers];
-char dirName[SIZE], pdport[SIZE], pdip[SIZE];;
+char dirName[SIZE], pdport[SIZE], pdip[SIZE];
+
+void VerboseMode_SET(int test){
+     verbose_flag = test;
+}
+
+ void print_UserData(int uid){
+    char filename[SIZE];
+    strcpy(dirName, "users/");
+    strcpy(filename, dirName);
+    strcat(filename, to_string(uid).c_str());
+    strcat(filename, "/reg.txt");
+    string tempIO;
+    string inFileIP;
+    string inFilePort;
+    ifstream inFile;
+    inFile.open(filename);
+    getline(inFile, inFileIP);
+    getline(inFile, inFilePort);
+    inFile.close();
+    printf("From: %s - %s\n", inFileIP.c_str(), inFilePort.c_str());
+}
 
 void processInput(int argc, char* const argv[]) {
     if (argc%2 != 1) {
@@ -60,12 +82,13 @@ void processInput(int argc, char* const argv[]) {
         }
         else if (strcmp(argv[i], "-v") == 0) {
             //Ativar verbose mode
+            VerboseMode_SET(1);
             continue;
         }
     }
 }
 
-void Client_Server_Send(int udpClientSocket, char msg[SIZE]){
+void Client_Server_Send(int udpServerSocket, char toSend[SIZE]){
     time_t start, end;
     double elapsed;
 
@@ -76,13 +99,13 @@ void Client_Server_Send(int udpClientSocket, char msg[SIZE]){
 
         elapsed = difftime(end, start);
         int n = sendto(udpServerSocket, toSend, strlen(toSend), 0, (struct sockaddr*) &addr_us, addrlen_us);
-            if (n == -1) perror("sendto udp server socket fs");
+            if (n == -1) perror("send to udp server socket");
             else
                 elapsed = 5;
     } while(elapsed < 5);  /* run for five seconds */
 }
 
-void Server_Client_Send(int udpClientSocket, char msg[SIZE]){
+void Server_Client_Send(int udpClientSocket, char toSend[SIZE]){
     time_t start, end;
     double elapsed;
 
@@ -92,7 +115,7 @@ void Server_Client_Send(int udpClientSocket, char msg[SIZE]){
         time(&end);
 
         elapsed = difftime(end, start);
-        int n = sendto(udpClientSocket, msg, strlen(toSend), 0, res_uc->ai_addr, res_uc->ai_addrlen);
+        int n = sendto(udpClientSocket, toSend, strlen(toSend), 0, res_uc->ai_addr, res_uc->ai_addrlen);
           if (n == -1)
               perror("VLC send");
           else
@@ -194,8 +217,10 @@ int checkRegisterInput(char buffer[SIZE]) {
     userCred << pdport;
     userCred.close();
 
-    printf("PD: new user, UID=%s\n", uid);
-
+    if (verbose_flag == -1){
+        printf("PD: new user, UID=%s\n", uid);
+        printf("From: %s - %s\n", pdip, pdport);
+    }
     return 1;
 }
 
@@ -254,7 +279,7 @@ int checkUnregisterInput(char buffer[SIZE]) {
     }
 }
 
-int checkLoginInput(char buffer[SIZE]) {
+int checkLoginInput(char buffer[SIZE], int fd) {
     char filename[SIZE], uid[SIZE], password[SIZE], dirName[SIZE];
 
     sscanf(buffer, "LOG %[0-9] %[0-9a-zA-Z]\n", uid, password);
@@ -286,8 +311,25 @@ int checkLoginInput(char buffer[SIZE]) {
         userLogReg.open(tempfileName);
         userLogReg.close();
 
-        printf("User: login ok, UID=%s\n", uid);
+        addrlen = sizeof(addr);
+        getpeername(fd, (struct sockaddr*)&addr, &addrlen);
 
+        /* Create user info file */
+        char temporaryFile[SIZE];
+        strcpy(temporaryFile, dirName);
+        strcat(temporaryFile, "/connect.txt");
+        ofstream userConnect;
+        userConnect.open(temporaryFile);
+        userConnect << inet_ntoa(addr.sin_addr);
+        userConnect << '\n';
+        userConnect << ntohs(addr.sin_port);
+        userConnect << '\n';
+        userConnect.close();
+
+        if (verbose_flag == -1){
+            printf("User: login ok, UID=%s\n", uid);
+            printf("From: %s - %d\n",inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
+        }
         return 1;    
     }
     else { /* user directory does not exist */
@@ -365,10 +407,7 @@ int treatRequestInput(char buffer[SIZE], int fdIndex) {
     strcat(toSend, "\n");
     strcat(toSend, "\0");
 
-
-    int n = sendto(udpClientSocket, toSend, strlen(toSend), 0, res_uc->ai_addr, res_uc->ai_addrlen);
-    if (n == -1)
-        perror("VLC send");
+    Server_Client_Send(udpClientSocket, toSend);
 
     if (strcmp(fop, "U") == 0) {
         strcpy(op_name, "upload");
@@ -391,9 +430,17 @@ int treatRequestInput(char buffer[SIZE], int fdIndex) {
     strcpy(tempfileName_2, dirName);
     strcat(tempfileName_2, "/tid.txt");
     userTid.open(tempfileName_2);
+
+    // printf("fname: %s.\n", fname);
+    
     userTid << fop;
     userTid << '\n';
-    userTid << fname;
+    if (strcmp(fop, "L") != 0 && strcmp(fop, "X") != 0) {
+        userTid << fname;
+        userTid << '\n';
+    }
+    printf("vc: %s\n", vc);
+    userTid << string(vc);
     userTid << '\n';
     userTid.close();
 
@@ -407,9 +454,15 @@ int treatRequestInput(char buffer[SIZE], int fdIndex) {
     userFD.close();
 
     if (strcmp(fop, "L") != 0 && strcmp(fop, "X") != 0) 
-        printf("User: %s req, UID=%s, file: %s, RID=%s, VC=%s\n", op_name, uid, fname, rid, vc);
+        if (verbose_flag == -1){
+            printf("User: %s req, UID=%s, file: %s, RID=%s, VC=%s\n", op_name, uid, fname, rid, vc);
+            printf("From: %s - %d\n",inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
+        }
     else 
-        printf("User: %s req, UID=%s, RID=%s, VC=%s\n", op_name, uid, rid, vc);
+        if (verbose_flag == -1){
+            printf("User: %s req, UID=%s, RID=%s, VC=%s\n", op_name, uid, rid, vc);
+            printf("From: %s - %d\n",inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
+        }
     return 1;
 }
 
@@ -456,44 +509,70 @@ void treatVLDInput(char buffer[SIZE]) {
     strcat(path, uid);
     strcat(path, "/tid.txt");
 
-    string fileTID, fop, fname;
+    string fileTID, fop, fname, vc;
     ifstream f;
     f.open(path);
     getline(f, fop);
     if (strcmp(fop.c_str(), "L") != 0 && strcmp(fop.c_str(), "X")) {
         getline(f, fname);
     }
+    getline(f, vc);
     getline(f, fileTID);
 
-        //CNF UID TID Fop [Fname]
-        strcpy(toSend, "CNF ");
-        strcat(toSend, uid);
+    f.close();
+    remove(path);
+
+    printf("path - %s\n", path);
+
+    //CNF UID TID Fop [Fname]
+    strcpy(toSend, "CNF ");
+    strcat(toSend, uid);
+    strcat(toSend, " ");
+    strcat(toSend, tid);
+    strcat(toSend, " ");
+    printf("tid do fs: %s, tid do ficheiro do user: %s.\n", tid, fileTID.c_str());
+    if (strcmp(tid, fileTID.c_str()) != 0) {
+        printf("incorrect tid");
+        strcat(toSend, "E"); //error fop
+    }
+    else {
+        strcat(toSend, fop.c_str());
+    }
+    if (strcmp(fop.c_str(), "L") != 0 && strcmp(fop.c_str(), "X")) {
         strcat(toSend, " ");
-        strcat(toSend, tid);
-        strcat(toSend, " ");
-        if (strcmp(tid, fileTID.c_str()) != 0) {
-            printf("incorrect tid");
-            strcat(toSend, "E"); //error fop
-        }
-        else {
-            strcat(toSend, fop.c_str());
-        }
-        if (strcmp(fop.c_str(), "L") != 0 && strcmp(fop.c_str(), "X")) {
-            strcat(toSend, " ");
-            strcat(toSend, fname.c_str());
-        }
-        strcat(toSend, "\n");
-    
-        /* sends ok or not ok to fs */
-        int n = sendto(udpServerSocket, toSend, strlen(toSend), 0, (struct sockaddr*) &addr_us, addrlen_us);
-        if (n == -1) perror("sendto udp server socket fs");
-    // }
+        strcat(toSend, fname.c_str());
+    }
+    strcat(toSend, "\n");
+
+    /* sends ok or not ok to fs */
+    Client_Server_Send(udpServerSocket, toSend);
+// }
 }
 
 int checkAuthenticationInput(char buffer[SIZE]) {
-    char uid[SIZE], rid[SIZE], vc[SIZE], dirName[SIZE];
+    char uid[6], rid[5], vc[5], dirName[SIZE], path[SIZE];
 
     sscanf(buffer, "AUT %[0-9] %[0-9] %[0-9]\n", uid, rid, vc);
+
+
+    strcpy(path, "users/");
+    strcat(path, uid);
+    strcat(path, "/tid.txt");
+
+    string fileTID, fop, fname, fileVC;
+    ifstream f;
+    f.open(path);
+    getline(f, fop);
+    if (strcmp(fop.c_str(), "L") != 0 && strcmp(fop.c_str(), "X")) {
+        getline(f, fname);
+    }
+    getline(f, fileVC);
+    // getline(f, fileTID);
+    printf("fvc: %s, vc: %s\n", fileVC.c_str(), vc);
+
+    f.close();
+    
+    if (strcmp(fileVC.c_str(), vc) != 0) return 0;
 
     return atoi(uid);
 }
@@ -608,24 +687,8 @@ int main(int argc, char* argv[]) {
                     treatVLDInput(buffer);
                     continue;
                 }
-                
-                time_t start, end;
-                double elapsed;
-            
-                time(&start);  /* start the timer */
-            
-                do {
-                    time(&end);
-            
-                    elapsed = difftime(end, start);
                     /*send confirmation message to AS*/
-                    n = sendto(udpServerSocket, buffer, strlen(buffer), 0, (struct sockaddr*) &addr_us, addrlen_us);
-                        if (n == -1) { perror("sendto udp server socket"); continue; }
-                        else
-                            elapsed = 5;
-                } while(elapsed < 5);  /* run for ten seconds */
-
-                /* sends ok or not ok to pd or fs */
+                    Client_Server_Send(udpServerSocket, buffer);
             }
             else if (FD_ISSET(tcpServerSocket, &readfds)) {
                 /*===========================================
@@ -645,7 +708,7 @@ int main(int argc, char* argv[]) {
                     }   
                 } 
             }
-            for (int i = 0; i < maxUsers; i++) {   
+            for (int i = 0; i < maxUsers; i++) {  
                 fd = fdClients[i];   
                 if (FD_ISSET(fd, &readfds)) {  
                     char readBuffer;
@@ -656,7 +719,6 @@ int main(int argc, char* argv[]) {
                     } while (n != strlen(buffer));
 
                     if (n == 0) {
-                        getpeername(fd, (struct sockaddr*)&addr, (socklen_t*)&addrlen);
 
                         //Close the socket and mark as 0 in list for reuse
                         close(fd);
@@ -668,7 +730,7 @@ int main(int argc, char* argv[]) {
                         strncpy(command, buffer, 3);
 
                         if (strcmp(command, "LOG") == 0) {
-                            if (checkLoginInput(buffer)) {
+                            if (checkLoginInput(buffer, fd)) {
                                 strcpy(buffer, "RLO OK\n");
                             }
                             else 
@@ -716,9 +778,10 @@ int main(int argc, char* argv[]) {
                                 strcpy(dirName, "users/");
                                 strcat(dirName, to_string(res).c_str());
                                 strcat(dirName, "/tid.txt");
-                                ofstream userTid; 
-                                userTid.open(dirName, std::ios_base::app);
-                                userTid << tid_temp;
+                                fstream userTid; 
+                                printf("dirname: %s\ntid_temp: %d\n", dirName, tid_temp);
+                                userTid.open(dirName, ios::app | ios::out);
+                                userTid << to_string(tid_temp);
                                 userTid.close();
                                 
                                 string s_tid = to_string(tid_temp);
@@ -740,15 +803,23 @@ int main(int argc, char* argv[]) {
 
                                 //aceder ao file tid para recuperar fop e fname
                                 if (strcmp(inFileFOP.c_str(), "L") != 0 && strcmp(inFileFOP.c_str(), "X") != 0)
-                                    printf("User: UID=%d, %s, %s, TID=%s\n", res, inFileFOP.c_str(), inFileFNAME.c_str(), tid);
+                                    if (verbose_flag == -1){
+                                        printf("User: UID=%d, %s, %s, TID=%s\n", res, inFileFOP.c_str(), inFileFNAME.c_str(), tid);
+                                        printf("From: %s - %d\n",inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
+                                        
+                                    }
                                 else 
-                                    printf("User: UID=%d, %s, TID=%s\n", res, inFileFOP.c_str(), tid);
+                                    if (verbose_flag == -1){
+                                        printf("User: UID=%d, %s, TID=%s\n", res, inFileFOP.c_str(), tid);
+                                        printf("From: %s - %d\n",inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
+                                     
+                                    }
                             }
                             else 
                                 strcpy(buffer, "RAU 0\n");
 
                             n = 0;
-                            while (n != strlen(buffer)) {
+                            while (n < strlen(buffer)) {
                                 n += send(fd, &buffer[n], strlen(buffer)-n, 0);
                             }
                         }

@@ -73,11 +73,15 @@ void treatRLS() {
     int size = 0;
 
     int n = read(tcpSocket_FS, buffer, SIZE);
+    printf("recebeu do fs: %s.\n", buffer);
     while (n != 0) {
         size += n;
         fwrite(buffer, sizeof(char), sizeof(buffer), tempFile);
         memset(buffer, '\0', n * sizeof(char));
+
+        printf("before read\n");
         n = read(tcpSocket_FS, buffer, SIZE);
+        printf("n: %d\n", n);
     }
     fwrite("\0", sizeof(char), sizeof(char), tempFile);
     fclose(tempFile);
@@ -107,7 +111,7 @@ void treatRLS() {
 
     n_files = atoi(token);
 
-    printf("%d files:\n", n_files);
+    printf("%d file(s):\n", n_files);
     
     for (int i = 0; i < n_files; i++) {
         char size[10];
@@ -383,7 +387,7 @@ int main(int argc, char* const argv[]) {
                         nleft = nbytes;
 
                         // REQ UID RID Fop [Fname]
-                        printf("sending: %s\n", buffer);
+                        // printf("sending: %s\n", buffer);
                         n = write(tcpSocket_AS, buffer, nleft);
                         if (n <= 0) { perror("tcp write"); exit(1); }
 
@@ -527,12 +531,14 @@ int main(int argc, char* const argv[]) {
             }
             else if (FD_ISSET(tcpSocket_FS, &readfds)) {
 
+
+
                 char *token;
                 char bufferTemp[SIZE];
                 memset(command, '\0', strlen(command)*sizeof(char));
                 int n = read(tcpSocket_FS, command, 4);
                 command[4] = '\0';
-                printf("command: %s.\n", command);
+                // printf("command: %s.\n", command);
 
                 if (strcmp(command, "RLS ") == 0) {
                     treatRLS();
