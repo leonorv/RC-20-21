@@ -175,6 +175,10 @@ void treatRRT() {
         memset(fileBuff, '\0', strlen(fileBuff));
     } while (size > 0);
 
+    n = read(tcpSocket_FS, fileBuff, 1); //read extra \n
+    memset(fileBuff, '\0', strlen(fileBuff));
+
+
     fclose(f);     
 
 }
@@ -427,6 +431,8 @@ int main(int argc, char* const argv[]) {
                                 fread(bufferTemp, 1, 1, f);
                                 n += write(tcpSocket_FS, bufferTemp, 1);
                             } while (size > n);
+
+                            n = write(tcpSocket_FS, "\n", 1); //plus \n
 
                             fclose(f);
                                                        
