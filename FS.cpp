@@ -24,7 +24,7 @@ using namespace std;
 extern int errno;
 
 char ASIP[SIZE], ASport[SIZE] = "58030", FSIP[SIZE], FSport[SIZE] = "59030";
-int verbose_flag = 1;//alterar para -1
+int verbose_flag = -1;
 const int maxUsers = 5;
 int udpClientSocket, tcpServerSocket;
 fd_set readfds;
@@ -42,20 +42,23 @@ void VerboseMode_SET(int test){
 }
 
 void processInput(int argc, char* const argv[]) {
-    if (argc%2 != 1) {
+    if (argc > 5) {
         printf("Parse error!\n");
         exit(1);
     }
-    for (int i = 1; i < argc - 1; i++) {
+    for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "-q") == 0) {
+            if (i == argc - 1) continue;
             strcpy(FSport, argv[i + 1]);
             continue;
         }
         if (strcmp(argv[i], "-n") == 0) {
+            if (i == argc - 1) continue;
             strcpy(ASIP, argv[i + 1]);
             continue;
         }
         if (strcmp(argv[i], "-p") == 0) {
+            if (i == argc - 1) continue;
             strcpy(ASport, argv[i + 1]);
             continue;
         }
@@ -405,9 +408,6 @@ void treatRLS(int fd, char uid[6]) {
     strcpy(buffer, "RRM OK\n");
     n = write(fdClients[fd], buffer, strlen(buffer));
     if (n < 0) perror("write fs to user");
-
-
-
  }
 
  void createFdFile(char uid[SIZE], int i) {
@@ -616,13 +616,11 @@ int main(int argc, char* argv[]) {
                     n = read(fd, command, 4);
                     command[3] = '\0';
 
-
                     n = read(fd, uid, 6);
                     uid[5] = '\0';
 
                     n = read(fd, tid, 5);
                     tid[4] = '\0';
-
 
                     char path[SIZE];
                     strcpy(path, dirName);
@@ -664,23 +662,41 @@ int main(int argc, char* argv[]) {
                         }
                         else if (strcmp(command, "UPL") == 0) {
                             //UPL UID TID Fname Fsize data
+                            FILE *f;
+                            char fileBuff[SIZE];
+                            char path[SIZE];
+
                             memset(nome, '\0', strlen(nome) * sizeof(char));
                             size = 0;
                             do {
                                 n = read(fd, &nome[size], 1);
+                                size += n;
+                            } while (n > 0 && nome[size-1] != ' ' && size < 24);
+                            nome[size-1] = '\0';
 
-                            } while (n > 0 && nome[size-1] )
-                            n = read(fd, nome, 24);
-                            nome[n] = '\0';
+                            char fsz[10];
+                            memset(fsz, '\0', strlen(fsz) * sizeof(char));
+                            size = 0;
+                            do {
+                                n = read(fd, &fsz[size], 1);
+                                size += n;
+                            } while (n > 0 && fsz[size-1] != ' ' && size < 10);
+                            fsz[size-1] = '\0';  
+
+                            strcpy(path, "FS_files/");
+                            strcat(path, uid);
+                            strcat(path, "/");
+                            strcat(path, nome);
+                            strcat(path, "\0");
+
                             
-                            
-
-
+                            size = atoi(fsz);
+                            printf("upl path: %s, filesize: %d\n", path, size);
                             /* file */
-                            FILE *f;
+
                             f = fopen(path, "wb");
                             do {
-                                n = read(tcpSocket_FS, fileBuff, SIZE);
+                                n = read(fd, fileBuff, SIZE);
                                 size -= n;
                                 fwrite(fileBuff, 1, n, f);
                                 memset(fileBuff, '\0', strlen(fileBuff));
@@ -715,7 +731,6 @@ int main(int argc, char* argv[]) {
                         }
                         else if (strcmp(command, "REM") == 0) {
                             //REM UID TID
-
                             memset(buffer, '\0', strlen(buffer)*sizeof(char));
                             sprintf(buffer, "VLD %s %s\n", uid, tid);
                             Server_Client_Send(udpClientSocket, buffer);
@@ -726,11 +741,8 @@ int main(int argc, char* argv[]) {
                             printf("ERR\n");
                         }  
                     }
-                    
                     memset(buffer, '\0', SIZE * sizeof(char));    
-                    
                 }
-            
         }
     }
 }      

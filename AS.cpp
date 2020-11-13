@@ -33,7 +33,7 @@ extern int errno;
 
 char ASport[SIZE] = "58030", ASIP[SIZE], PDport[SIZE] = "57030", PDIP[SIZE] , FSport[SIZE] = "59030", FSIP[SIZE];
 
-int verbose_flag = 1;//alterar para -1
+int verbose_flag = -1;
 const int maxUsers = 5;
 FILE *fptr;
 int udpServerSocket, tcpServerSocket, udpClientSocket;
@@ -70,12 +70,13 @@ void print_UserData(char uid[SIZE]){
 }
 
 void processInput(int argc, char* const argv[]) {
-    if (argc%2 != 1) {
+    if (argc > 4) {
         printf("Parse error!\n");
         exit(1);
     }
-    for (int i = 1; i < argc - 1; i++) {
+    for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "-p") == 0) {
+            if (i == argc - 1) continue;
             strcpy(ASport, argv[i + 1]);
             continue;
         }
