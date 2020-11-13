@@ -55,7 +55,7 @@ void VerboseMode_SET(int test){
 
 void print_UserData(char uid[SIZE]){
     char filename[SIZE];
-    strcpy(dirName, "users/");
+    strcpy(dirName, "USERS/");
     strcpy(filename, dirName);
     strcat(filename, uid);
     strcat(filename, "/connect.txt");
@@ -170,7 +170,7 @@ int checkRegisterInput(char buffer[SIZE]) {
     if (strlen(pdip) == 1) return 0;
     if (strlen(pdport) == 1 || strlen(pdport) != 5) return 0;
 
-    strcpy(dirName, "users/");
+    strcpy(dirName, "USERS/");
     strcat(dirName, uid);
     int error = mkdir(dirName, 0777);
 
@@ -228,7 +228,7 @@ int checkUnregisterInput(char buffer[SIZE]) {
 
     sscanf(buffer, "UNR %[0-9] %[0-9a-zA-Z]\n", uid, password);
 
-    strcpy(dirName, "users/");
+    strcpy(dirName, "USERS/");
     strcat(dirName, uid);
 
     int error = mkdir(dirName, 0777);
@@ -247,32 +247,36 @@ int checkUnregisterInput(char buffer[SIZE]) {
         }
         inFile.close();
 
+
+
         /* delete directory */
         remove(filename); /* remove password.txt */
+        //
         memset(filename, '\0', SIZE * sizeof(char));
         strcpy(filename, dirName);
         strcat(filename, "/reg.txt");   
         remove(filename); /* remove reg.txt */
-        rmdir(dirName);
+        // 
         memset(filename, '\0', SIZE * sizeof(char));
         strcpy(filename, dirName);
         strcat(filename, "/login.txt");   
         remove(filename); /* remove login.txt */
-        rmdir(dirName);
+        // 
         memset(filename, '\0', SIZE * sizeof(char));
         strcpy(filename, dirName);
         strcat(filename, "/fd.txt");   
         remove(filename); /* remove fd.txt */
-        rmdir(dirName);
+        // 
         memset(filename, '\0', SIZE * sizeof(char));
         strcpy(filename, dirName);
         strcat(filename, "/tid.txt");   
         remove(filename); /* remove tid.txt */
-        rmdir(dirName);
+        // 
         memset(filename, '\0', SIZE * sizeof(char));
         strcpy(filename, dirName);
         strcat(filename, "/connect.txt");   
         remove(filename); /* remove tid.txt */
+        rmdir(dirName);
         // more files
         return 1;    
     }
@@ -287,7 +291,7 @@ int checkLoginInput(char buffer[SIZE], int fd) {
 
     sscanf(buffer, "LOG %[0-9] %[0-9a-zA-Z]\n", uid, password);
 
-    strcpy(dirName, "users/");
+    strcpy(dirName, "USERS/");
     strcat(dirName, uid);
 
     int error = mkdir(dirName, 0777);
@@ -353,7 +357,7 @@ int treatRequestInput(char buffer[SIZE], int fdIndex) {
         return ELOG;
     }
 
-    strcpy(dirName, "users/");
+    strcpy(dirName, "USERS/");
     strcat(dirName, uid);
 
     int error = mkdir(dirName, 0777);
@@ -469,7 +473,7 @@ int treatRequestInput(char buffer[SIZE], int fdIndex) {
 }
 
 void treatRVCInput(char buffer[SIZE]) { //as received rvc from pd and he's going to send ok/nok to user
-    char uid[SIZE], msg[SIZE], status[SIZE], dirName[SIZE] = "users/";
+    char uid[SIZE], msg[SIZE], status[SIZE], dirName[SIZE] = "USERS/";
     int fdIndex;
 
     sscanf(buffer, "RVC %[0-9] %s\n", uid, status);
@@ -501,9 +505,10 @@ void treatRVCInput(char buffer[SIZE]) { //as received rvc from pd and he's going
 void treatVLDInput(char buffer[SIZE]) {
     // VLD UID TID
     char uid[6], tid[5];
-    char path[SIZE] = "users/";
+    char path[SIZE] = "USERS/";
     char fileBuffer[SIZE];
     char toSend[SIZE];
+
     // char fop[2], name[SIZE], fileTid
 
     sscanf(buffer, "VLD %s %s\n", uid, tid);
@@ -544,6 +549,19 @@ void treatVLDInput(char buffer[SIZE]) {
     }
     strcat(toSend, "\n");
 
+    if (verbose_flag == 1){
+        printf("FS: validated for UID=%s - %s, %s",uid, fop.c_str() ,fname.c_str());
+    }
+
+    if (strcmp(fop.c_str(), "X")) {
+        memset(path, '\0', strlen(path) * sizeof(char));
+        strcpy(path, "USERS/");
+        strcat(path, uid);
+        strcat(path, "/login.txt");
+        strcat(path, "\0");
+        remove(path);
+    }
+
     /* sends ok or not ok to fs */
     Client_Server_Send(udpServerSocket, toSend);
 // }
@@ -555,7 +573,7 @@ int checkAuthenticationInput(char buffer[SIZE]) {
     sscanf(buffer, "AUT %[0-9] %[0-9] %[0-9]\n", uid, rid, vc);
 
 
-    strcpy(path, "users/");
+    strcpy(path, "USERS/");
     strcat(path, uid);
     strcat(path, "/tid.txt");
 
@@ -582,7 +600,7 @@ int main(int argc, char* argv[]) {
     if (gethostname(ASIP ,SIZE) == -1)
         fprintf(stderr,"error: %s\n", strerror(errno));
 
-    int check = mkdir("users", 0777);
+    int check = mkdir("USERS", 0777);
 
     setupUDPServerSocket();
     setupTCPServerSocket();
@@ -772,7 +790,7 @@ int main(int argc, char* argv[]) {
 
                                 int tid_temp = rand() % 8000 + 1000;
 
-                                strcpy(dirName, "users/");
+                                strcpy(dirName, "USERS/");
                                 strcat(dirName, to_string(res).c_str());
                                 strcat(dirName, "/tid.txt");
                                 fstream userTid; 

@@ -131,7 +131,7 @@ void treatRRT() {
     char fileBuff[SIZE];
     char buff[SIZE];
     char fsize[10];
-    char path[SIZE] = "files/";
+    char path[SIZE] = "My_files/";
     int size;
     strcat(path, filename);
     strcat(path, "\0");
@@ -183,7 +183,6 @@ void treatRRT() {
 
     fclose(f);     
 
-    printf("File retrieved with success!\n");
 }
 
 void treatRUP() {
@@ -211,8 +210,6 @@ void treatRUP() {
         }
 
     }
-    printf("File uploaded with success!\n");
-
 }
 
 void treatRRM() {
@@ -236,7 +233,6 @@ void treatRRM() {
         }
 
     }
-    printf("All files removed with success\n");
 }
 
 void treatRDL() {
@@ -264,7 +260,6 @@ void treatRDL() {
         }
 
     }
-    printf("File removed with success\n");
 }
 
 int setTCPClientFS() {
@@ -290,7 +285,7 @@ int main(int argc, char* const argv[]) {
     if (gethostname(ASIP,SIZE) == -1)
         fprintf(stderr,"error: %s\n",strerror(errno));
 
-    int check = mkdir("files", 0777);
+    int check = mkdir("My_files", 0777);
         
     /*==========================
         process standard input
@@ -443,6 +438,7 @@ int main(int argc, char* const argv[]) {
                         }
                         else if (strcmp(command, "retrieve") == 0 || strcmp(command, "r") == 0) {
                             sprintf(buffer, "RTV %s %d %s\n", uid, tid, filenameTemp); // stuart mill conhesses
+                            // printf("sending to fs: %s")
                             
                         }
                         else if (strcmp(command, "delete") == 0 || strcmp(command, "d") == 0) {
@@ -534,32 +530,31 @@ int main(int argc, char* const argv[]) {
             }
             else if (FD_ISSET(tcpSocket_FS, &readfds)) {
 
-
-
                 char *token;
                 char bufferTemp[SIZE];
                 memset(command, '\0', strlen(command)*sizeof(char));
                 int n = read(tcpSocket_FS, command, 4);
                 command[4] = '\0';
-                // printf("command: %s.\n", command);
 
                 if (strcmp(command, "RLS ") == 0) {
                     treatRLS();
+                    printf("Success listing files\n");
                 }
                 else if (strcmp(command, "RRT ") == 0) {
                     treatRRT();
-                 
+                    printf("Success retrieving\n");
                 }
                 else if (strcmp(command, "RUP ") == 0) {
                     treatRUP();
-                 
+                    printf("Success uploading\n");
                 }
                 else if (strcmp(command, "RDL ") == 0) {
                     treatRDL();
-                 
+                    printf("Success deleting\n");
                 }
                 else if (strcmp(command, "RRM ") == 0) {
                     treatRRM();
+                    printf("Success removing\n");
                 }
                 close(tcpSocket_FS);
                 tcpSocket_FS = -1;
