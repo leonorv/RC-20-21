@@ -49,16 +49,19 @@ void processInput(int argc, char* const argv[]) {
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "-q") == 0) {
             if (i == argc - 1) continue;
+            memset(FSport, '\0', SIZE * sizeof(char));
             strcpy(FSport, argv[i + 1]);
             continue;
         }
         if (strcmp(argv[i], "-n") == 0) {
             if (i == argc - 1) continue;
+            memset(ASIP, '\0', SIZE * sizeof(char));
             strcpy(ASIP, argv[i + 1]);
             continue;
         }
         if (strcmp(argv[i], "-p") == 0) {
             if (i == argc - 1) continue;
+            memset(ASport, '\0', SIZE * sizeof(char));
             strcpy(ASport, argv[i + 1]);
             continue;
         }
@@ -122,25 +125,21 @@ void treatRLS(int fd, char uid[6]) {
 
     closedir(dr); 
     if (n_files == 0) {
-        char buffer[9] = "RLS EOF\n";
-        n = 0;
-        while (n < 8) {
-            n += send(fdClients[fd], &buffer[n], strlen(buffer)-n, 0);
-            if (n < 0) {
-                perror("error on send fs to user 2");
-            break;
-            }
-        }
+        char buffer[9];
+        strcpy(buffer, "RLS EOF\n");
+        n = write(fdClients[fd], buffer, strlen(buffer));
+        if (n < 0) perror("write fs to user");
         return;
     }
 
     // RLS_NFILES_[s]
-    int buffersize = 3 + 1 + strlen(to_string(n_files).c_str()) + 1 + strlen(s.c_str());
+    int buffersize = 3 + 1 + strlen(to_string(n_files).c_str()) + 1 + strlen(s.c_str()) + 1;
     char buffer[buffersize];
     strcpy(buffer, "RLS ");
     strcat(buffer, to_string(n_files).c_str());
     strcat(buffer, " ");
     strcat(buffer, s.c_str());
+    strcat(buffer, "\n");
     buffer[buffersize] = '\0'; //'\n' sits on last space
 
     n = 0;
@@ -265,6 +264,8 @@ void treatRLS(int fd, char uid[6]) {
             break;
         }
     } while (fsize > sum);
+
+    n = write(fdClients[fd], "\n", 1);
  } 
 
  void treatRUP(int fd, char uid[6],char tid[5], char fop[2], char fname[25]) {
@@ -307,8 +308,9 @@ void treatRLS(int fd, char uid[6]) {
         return;
     }
 
-    char buffer[8];
+    char buffer[9];
     strcpy(buffer, "RUP OK\n");
+
     n = write(fdClients[fd], buffer, strlen(buffer));
     if (n < 0) perror("write fs to user");
 
@@ -518,7 +520,7 @@ int main(int argc, char* argv[]) {
         ==========================*/
         maxfd = max(maxfd, udpClientSocket);
         retval = select(maxfd + 1, &readfds, NULL, NULL, NULL);
-            if (retval <= 0)/*error*/exit(1);
+            if (retval <= 0)/*error*/{perror("retval <= 0");exit(1);}
         
         for (; retval; retval--) {
             if (FD_ISSET(udpClientSocket, &readfds)) {
@@ -526,7 +528,7 @@ int main(int argc, char* argv[]) {
                 /*RECEIVING AS AS A CLIENT*/
                 addrlen_udp = sizeof(addr_udp);
                 n = recvfrom(udpClientSocket, buffer, SIZE, 0, (struct sockaddr*) &addr_udp, &addrlen_udp);
-                if (n == -1)/*error*/exit(1);
+                if (n == -1)/*error*/{perror("n == -1");exit(1);}
                 buffer[n] = '\0';
 
                 /* CNF UID TID Fop [Fname] */
@@ -641,7 +643,7 @@ int main(int argc, char* argv[]) {
                     char nome[25];
                     int size;
 
-                    n = read(fd, command, 4);
+                     n = read(fd, command, 4);
                     command[3] = '\0';
 
                     n = read(fd, uid, 6);
@@ -716,12 +718,10 @@ int main(int argc, char* argv[]) {
                             strcat(path, "/");
                             strcat(path, nome); 
                             strcat(path, "\0");
-
                             
                             size = atoi(fsz);
-                            /* file */
 
-                            if((f = fopen(path, "w+b")) == NULL)
+                            if ((f = fopen(path, "w+b")) == NULL)
                             perror("file creation");
                             
                             int totalRead = 0;
@@ -732,15 +732,19 @@ int main(int argc, char* argv[]) {
                                 memset(fileBuff, '\0', strlen(fileBuff));
                             } while (n > 0 && totalRead < size);
 
+                            //read extra \n
+                            n = read(fd, fileBuff, 1);
+                            memset(fileBuff, '\0', strlen(fileBuff));
+
                             fclose(f);
 
-                             // send to AS ->> VLD UID TID
+                            // send to AS ->> VLD UID TID
                             memset(buffer, '\0', strlen(buffer)*sizeof(char));
                             sprintf(buffer, "VLD %s %s\n", uid, tid);
                             Server_Client_Send(udpClientSocket, buffer);
                             createFdFile(uid, i);
                             
-                            //create temp file in case of error
+                            // create temp file in case of error
                             memset(path, '\0', strlen(path) * sizeof(char));
                             strcpy(path, "FS_files/");
                             strcat(path, uid);

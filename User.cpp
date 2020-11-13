@@ -91,22 +91,22 @@ void treatRLS() {
     if (!fgets(fileBuffer, (size)*sizeof(char), tempFile)) perror("oops");
     token = strtok(fileBuffer, " "); //token has n_files or error
 
-    if (strcmp(token, "EOF\n") == 0) {
+    if (strcmp(token, "EOF") == 0) {
         printf("No files to list\n");
         return;
     }
-    else if (strcmp(token, "IRV\n") == 0) {
+    else if (strcmp(token, "INV") == 0) {
         printf("AS validation error\n");
         return;
     }
-    else if (strcmp(token, "ERR\n") == 0) {
+    else if (strcmp(token, "ERR") == 0) {
         printf("Invalid request\n");
         return;
     }
 
     n_files = atoi(token);
 
-    printf("%d file(s):\n", n_files);
+    if (n_files > 0) printf("%d file(s):\n", n_files);
     
     for (int i = 0; i < n_files; i++) {
         char size[10];
@@ -375,7 +375,7 @@ int main(int argc, char* const argv[]) {
                         }
                         else {
                             /* continue if incorrect command */
-                            perror("invalid request"); 
+                            printf("Invalid request\n");
                             continue;
                         }   
                         nbytes = strlen(buffer);
@@ -531,7 +531,7 @@ int main(int argc, char* const argv[]) {
 
                 if (strcmp(command, "RLS ") == 0) {
                     treatRLS();
-                    printf("Success listing files\n");
+                    //printf("Success listing files\n");
                 }
                 else if (strcmp(command, "RRT ") == 0) {
                     treatRRT();
@@ -548,6 +548,12 @@ int main(int argc, char* const argv[]) {
                 else if (strcmp(command, "RRM ") == 0) {
                     treatRRM();
                     printf("Success removing\n");
+                    //end connection
+                    if (res_AS) freeaddrinfo(res_AS);
+                    if (res_FS) freeaddrinfo(res_FS);
+                    close(tcpSocket_AS);
+                    close(tcpSocket_FS);
+                    exit(1);
                 }
                 close(tcpSocket_FS);
                 tcpSocket_FS = -1;

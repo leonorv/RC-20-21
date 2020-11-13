@@ -182,7 +182,7 @@ int main(int argc, char* argv[]){
                     char *token = strtok(temp, " ");
 
                     if (strcmp(token, "reg") != 0) {
-                        perror("invalid request");
+                        printf("Invalid request\n");
                         break;
                     }
 

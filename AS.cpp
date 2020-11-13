@@ -77,6 +77,7 @@ void processInput(int argc, char* const argv[]) {
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "-p") == 0) {
             if (i == argc - 1) continue;
+            memset(ASport, '\0', SIZE * sizeof(char));
             strcpy(ASport, argv[i + 1]);
             continue;
         }
@@ -554,7 +555,7 @@ void treatVLDInput(char buffer[SIZE]) {
         printf("FS: validated for UID=%s - %s, %s",uid, fop.c_str() ,fname.c_str());
     }
 
-    if (strcmp(fop.c_str(), "X")) {
+    if (strcmp(fop.c_str(), "X") == 0) {
         memset(path, '\0', strlen(path) * sizeof(char));
         strcpy(path, "USERS/");
         strcat(path, uid);
