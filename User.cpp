@@ -320,18 +320,17 @@ int main(int argc, char* const argv[]) {
                     /*====================================================
                     Free data structures and close socket connections
                     ====================================================*/
-                    char exit_buff[11];
-                    strcpy(exit_buff, "EXT ");
-                    strcat(exit_buff, uid);
-                    strcat(exit_buff, "\n");
+                    char buffer[128];
 
-                    printf("exitbuffer: %s\n", exit_buff);
+                    memset(buffer, '\0', strlen(buffer) * sizeof(char));
+                    sprintf(buffer, "EXT %s\n", uid);
 
-                    n = send(tcpSocket_AS, exit_buff, 11, 0);
+                    nbytes = strlen(buffer);
+                    nleft = nbytes;
+
+                    n = write(tcpSocket_AS, buffer, nleft);
                     if (n <= 0) { perror("tcp write"); exit(1); }
-                    printf("n:%ld\n", n);
 
-                    sleep(1);
                     if (res_AS) freeaddrinfo(res_AS);
                     if (res_FS) freeaddrinfo(res_FS);
                     close(tcpSocket_AS);

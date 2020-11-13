@@ -729,8 +729,6 @@ int main(int argc, char* argv[]) {
                     do {
                         n += read(fd, &buffer[n], SIZE - n); 
                     } while (n != strlen(buffer));
-                    
-                    printf("buff: %s\n", buffer);
 
                     if (n == 0) {
 
@@ -746,31 +744,24 @@ int main(int argc, char* argv[]) {
                             char user_id[6];
                             char p[SIZE];
 
-
-
                             sscanf(buffer, "EXT %s\n", user_id);
-                            user_id[5] = '\0';
-                            printf("id: %s.\n", user_id);    
+                            user_id[5] = '\0'; 
                             strcpy(p, "USERS/");
                             strcat(p, user_id);
                             strcat(p, "/");
                             strcat(p, "login.txt");
-                            remove(p);
-                            printf("p1: %s.\n", p);    
+                            remove(p); 
 
                             memset(p, '\0', sizeof(char)*strlen(p));
                             strcpy(p, "USERS/");
                             strcat(p, user_id);
                             strcat(p, "/");
                             strcat(p, "connect.txt");
-                            remove(p);
-                            printf("p2: %s.\n", p);  
+                            remove(p); 
 
                             continue;
                         }
                     
-
-
                         if (strcmp(command, "LOG") == 0) {
                             if (checkLoginInput(buffer, fd)) {
                                 strcpy(buffer, "RLO OK\n");
