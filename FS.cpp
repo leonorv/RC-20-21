@@ -122,7 +122,6 @@ void treatRLS(int fd, char uid[6]) {
 
     closedir(dr); 
     if (n_files == 0) {
-        // RLS EOF
         char buffer[9] = "RLS EOF\n";
         n = 0;
         while (n < 8) {
@@ -172,7 +171,7 @@ void treatRLS(int fd, char uid[6]) {
  }
 
  void treatRRT(int fd, char uid[6]) {  
-    struct dirent *userDir;  // Pointer for directory entry 
+    struct dirent *userDir;
     char path[SIZE];
     DIR *dr; 
     char filename[SIZE];
@@ -242,8 +241,6 @@ void treatRLS(int fd, char uid[6]) {
     strcat(firstBuffer, " ");
     firstBuffer[buffersize] = '\0'; //'\n' sits on last space
 
-
-
     int sum = 0;
     n = 0;
     while (sum < buffersize) {
@@ -270,45 +267,55 @@ void treatRLS(int fd, char uid[6]) {
     } while (fsize > sum);
  } 
 
- void treatRUP(int fd, char uid[6]) {
-/*
-    char fileBuff[SIZE];
-    char buff[SIZE];
-    char fsize[10];
-    char path[SIZE] = "files/";
-    int size;
-    strcat(path, filename);
-    strcat(path, "\0");
+ void treatRUP(int fd, char uid[6],char tid[5], char fop[2], char fname[25]) {
 
+    struct dirent *userDir; 
+    char path[SIZE];
+    DIR *dr; 
+    char filename[SIZE];
 
-     do {
-        memset(buff, ' ', sizeof(char) * strlen(buff));
-        n = read(fdClients[fd], buff, 1);
-        buff[1] = '\0';
-        strcat(fsize, buff);
-        } while (strcmp(buff, " ") != 0);
+    /* remover o fich que indica que foi feito um upload*/
+    char path_error[SIZE];
+    strcpy(path_error, "FS_files/");
+    strcat(path_error, uid);
+    strcat(path_error, "/");
+    strcat(path_error, "u.txt");
+    if( access(path_error, F_OK ) != -1 ) 
+        remove(path_error);
 
-    size = atoi(fsize);
-    printf("size: %d. fsize %s.\n", size, fsize);
+    char path_to_user_dir[SIZE];
+    strcpy(path_to_user_dir, "FS_files/");
+    strcat(path_to_user_dir, uid);
+    strcat(path_to_user_dir, "\0");
 
-    printf("File name: %s\n", filename);
-    printf("Path: %s\n", path);
+    dr = opendir(path_to_user_dir); 
+    int n_files = 0;
+    if (dr != NULL) {
+        while ((userDir = readdir(dr)) != NULL) {
+            if (!strcmp(userDir->d_name, ".") || !strcmp(userDir->d_name, "..") || !strcmp(userDir->d_name, "fd.txt"))
+                continue;    /* skip self and parent and fd*/
+            n_files++;
+        }
+    }
 
-    FILE *f;
-    f = fopen(path, "wb");
-    do {
-        n = read(fdClients[fd], fileBuff, SIZE);
-        size -= n;
-        fwrite(fileBuff, 1, n, f);
-        memset(fileBuff, '\0', strlen(fileBuff));
-    } while (size > 0);
+    if (n_files == 15) {
+        char bufferError[SIZE] = "RUP FULL\n";
+        int n = 0;        
+        do {
+            n += write(fdClients[fd], &bufferError[n], strlen(bufferError) - n);
+        } while (strlen(bufferError) > n);
+        return;
+    }
 
-    fclose(f); */
+    char buffer[8];
+    strcpy(buffer, "RUP OK\n");
+    n = write(fdClients[fd], buffer, strlen(buffer));
+    if (n < 0) perror("write fs to user");
 
- }
+}
 
- void treatRDL(int fd, char uid[6]) {
-    struct dirent *userDir;  // Pointer for directory entry 
+void treatRDL(int fd, char uid[6]) {
+    struct dirent *userDir;  
     char path[SIZE];
     DIR *dr; 
     char filename[SIZE];
@@ -377,7 +384,7 @@ void treatRLS(int fd, char uid[6]) {
  }
 
  void treatRRM(int fd, char uid[6]) {
-    struct dirent *userDir;  // Pointer for directory entry 
+    struct dirent *userDir;  
     char path[SIZE];
     DIR *dr; 
 
@@ -439,7 +446,6 @@ int getUserFd(char uid[SIZE]) {
 }
 
 int main(int argc, char* argv[]) {
-    // strcpy(dirName, "FS_files/");
     int error = mkdir("FS_files/", 0777);
 
     if (gethostname(ASIP ,SIZE) == -1)
@@ -472,7 +478,7 @@ int main(int argc, char* argv[]) {
         if (errcode != 0)/*error*/exit(1);
     if (bind(tcpServerSocket, res_tcp->ai_addr, res_tcp->ai_addrlen) < 0) exit(1);
 
-    /* Initialize TCP babies fds */
+    /* Initialize TCP clients fds */
     for (int i = 0; i < maxUsers; i++) {   
         fdClients[i] = 0;
     } 
@@ -535,7 +541,7 @@ int main(int argc, char* argv[]) {
                     int index = getUserFd(uid);
 
                     if (strcmp(fop, "U") == 0) {
-                        treatRUP(index, uid);
+                        treatRUP(index, uid, tid, fop, fname);
                         if (verbose_flag == 1){
                             printf("UID=%s: uploaded %s\n", uid, fname);
                             printf("operation validated\n");
@@ -575,6 +581,28 @@ int main(int argc, char* argv[]) {
                         }
                     }
                     else if (strcmp(fop, "E") == 0) {
+                        
+                        char path[SIZE];
+                        char path_error[SIZE];
+                        char b[SIZE] = "ERRO!\n";
+                        strcpy(path, "FS_files/");
+                        strcat(path, uid);
+                        strcat(path, "/\0");
+                        strcpy(path_error, path);
+                        strcat(path_error, "u.txt\0");
+                        if( access(path_error, F_OK ) != -1 ) {
+                            remove(path_error);
+                            memset(path_error, '\0', strlen(path_error) * sizeof(char));
+                            strcpy(path_error, path);
+                            remove(path_error);
+                            strcat(path_error, fname);
+                            
+                        }
+
+                        n = send(fdClients[index], b, SIZE, 0);
+                        if (verbose_flag == 1){
+                            printf("operation invalid\n");
+                        }
                     }
                     else {
                         printf("ERR\n");
@@ -623,7 +651,7 @@ int main(int argc, char* argv[]) {
                     tid[4] = '\0';
 
                     char path[SIZE];
-                    strcpy(path, dirName);
+                    strcpy(path, "FS_files/");
                     strcat(path, uid);
 
                     int error = mkdir(path, 0777);
@@ -686,27 +714,44 @@ int main(int argc, char* argv[]) {
                             strcpy(path, "FS_files/");
                             strcat(path, uid);
                             strcat(path, "/");
-                            strcat(path, nome);
+                            strcat(path, nome); 
                             strcat(path, "\0");
 
                             
                             size = atoi(fsz);
-                            printf("upl path: %s, filesize: %d\n", path, size);
                             /* file */
 
-                            f = fopen(path, "wb");
+                            if((f = fopen(path, "w+b")) == NULL)
+                            perror("file creation");
+                            
+                            int totalRead = 0;
                             do {
-                                n = read(fd, fileBuff, SIZE);
-                                size -= n;
+                                n = read(fd, fileBuff, 1);
+                                totalRead += n;
                                 fwrite(fileBuff, 1, n, f);
                                 memset(fileBuff, '\0', strlen(fileBuff));
-                            } while (size > 0);
+                            } while (n > 0 && totalRead < size);
+
+                            fclose(f);
+
                              // send to AS ->> VLD UID TID
                             memset(buffer, '\0', strlen(buffer)*sizeof(char));
                             sprintf(buffer, "VLD %s %s\n", uid, tid);
                             Server_Client_Send(udpClientSocket, buffer);
                             createFdFile(uid, i);
-
+                            
+                            //create temp file in case of error
+                            memset(path, '\0', strlen(path) * sizeof(char));
+                            strcpy(path, "FS_files/");
+                            strcat(path, uid);
+                            strcat(path, "/");
+                            strcat(path, "u.txt");
+                            strcat(path, "\0");
+                            ofstream fsCNF;
+                            fsCNF.open(path);
+                            fsCNF << nome;
+                            fsCNF << '\n';
+                            fsCNF.close();
                         }
                         else if (strcmp(command, "DEL") == 0) {
                             //DEL UID TID Fname
@@ -738,7 +783,11 @@ int main(int argc, char* argv[]) {
 
                         }
                         else {
-                            printf("ERR\n");
+                            char bufferERR[5];
+                            strcpy(bufferERR, "ERR\n");
+                            n = write(fd, bufferERR, strlen(bufferERR));
+                            if (n < 0) perror("write fs to user");
+                            
                         }  
                     }
                     memset(buffer, '\0', SIZE * sizeof(char));    

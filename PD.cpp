@@ -191,8 +191,6 @@ int main(int argc, char* argv[]){
                     strcat(strcat(strcat(strcpy(buffer, "REG "), uidTemp), " "), passwordTemp);
                     strcat(strcat(buffer, " "), fixedReg);   
 
-                    // printf("sending to as in client socket: %s\n", buffer);  
-
                     Client_Server_Send(udpClientSocket, buffer); 
                 }
             }

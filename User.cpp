@@ -73,15 +73,11 @@ void treatRLS() {
     int size = 0;
 
     int n = read(tcpSocket_FS, buffer, SIZE);
-    printf("recebeu do fs: %s.\n", buffer);
     while (n != 0) {
         size += n;
         fwrite(buffer, sizeof(char), sizeof(buffer), tempFile);
         memset(buffer, '\0', n * sizeof(char));
-
-        printf("before read\n");
         n = read(tcpSocket_FS, buffer, SIZE);
-        printf("n: %d\n", n);
     }
     fwrite("\0", sizeof(char), sizeof(char), tempFile);
     fclose(tempFile);
@@ -94,7 +90,6 @@ void treatRLS() {
     
     if (!fgets(fileBuffer, (size)*sizeof(char), tempFile)) perror("oops");
     token = strtok(fileBuffer, " "); //token has n_files or error
-
 
     if (strcmp(token, "EOF\n") == 0) {
         printf("No files to list\n");
@@ -167,7 +162,6 @@ void treatRRT() {
         } while (strcmp(buff, " ") != 0);
 
     size = atoi(fsize);
-    printf("size: %d. fsize %s.\n", size, fsize);
 
     printf("File name: %s\n", filename);
     printf("Path: %s\n", path);
@@ -189,7 +183,6 @@ void treatRUP() {
     char buffer[SIZE];
     int n = read(tcpSocket_FS, buffer, SIZE);
 
-    printf("buffer: %s\n", buffer);
 
     if (strcmp(buffer, "OK\n") != 0) { //if status != OK
         if (strcmp(buffer, "DUP\n") == 0) {
@@ -208,7 +201,6 @@ void treatRUP() {
             printf("Invalid request\n");
             return;
         }
-
     }
 }
 
@@ -216,7 +208,6 @@ void treatRRM() {
     char buffer[SIZE];
     int n = read(tcpSocket_FS, buffer, SIZE);
 
-    printf("buffer: %s\n", buffer);
 
     if (strcmp(buffer, "OK\n") != 0) { //if status != OK
         if (strcmp(buffer, "NOK\n") == 0) {
@@ -231,7 +222,6 @@ void treatRRM() {
             printf("Invalid request\n");
             return;
         }
-
     }
 }
 
@@ -239,7 +229,6 @@ void treatRDL() {
     char buffer[SIZE];
     int n = read(tcpSocket_FS, buffer, SIZE);
 
-    printf("buffer: %s\n", buffer);
 
     if (strcmp(buffer, "OK\n") != 0) { //if status != OK
         if (strcmp(buffer, "NOK\n") == 0) {
@@ -258,7 +247,6 @@ void treatRDL() {
             printf("Invalid request\n");
             return;
         }
-
     }
 }
 
@@ -277,7 +265,6 @@ int setTCPClientFS() {
 }
 
 int main(int argc, char* const argv[]) {
-
 
     if (gethostname(FSIP, SIZE) == -1)
         fprintf(stderr,"error: %s\n",strerror(errno));
@@ -333,6 +320,18 @@ int main(int argc, char* const argv[]) {
                     /*====================================================
                     Free data structures and close socket connections
                     ====================================================*/
+                    char exit_buff[11];
+                    strcpy(exit_buff, "EXT ");
+                    strcat(exit_buff, uid);
+                    strcat(exit_buff, "\n");
+
+                    printf("exitbuffer: %s\n", exit_buff);
+
+                    n = send(tcpSocket_AS, exit_buff, 11, 0);
+                    if (n <= 0) { perror("tcp write"); exit(1); }
+                    printf("n:%ld\n", n);
+
+                    sleep(1);
                     if (res_AS) freeaddrinfo(res_AS);
                     if (res_FS) freeaddrinfo(res_FS);
                     close(tcpSocket_AS);
@@ -384,7 +383,6 @@ int main(int argc, char* const argv[]) {
                         nleft = nbytes;
 
                         // REQ UID RID Fop [Fname]
-                        // printf("sending: %s\n", buffer);
                         n = write(tcpSocket_AS, buffer, nleft);
                         if (n <= 0) { perror("tcp write"); exit(1); }
 
@@ -400,46 +398,44 @@ int main(int argc, char* const argv[]) {
                         if (strcmp(command, "upload") == 0 || strcmp(command, "u") == 0) {
                             /* upload filename */
                             token = strtok(NULL, " ");
-                            printf("token : %s.\n",token);
                             token[strlen(token) - 1] = '\0';
-                            printf("token : %s.\n",token);
 
                             if (strcmp(token, filename) != 0) {
                                 perror("incorrect filename");
-                                // continue;
                             }
 
+                            ////////////////////////////// add file exists verif
+
+                            char path[SIZE] = "My_files/";
+                            strcat(path, token);
+                            strcat(path, "\0");
+
                             struct stat st;
-                            stat(token, &st);
+                            stat(path, &st);
                             int size = st.st_size;
 
                             FILE *f;
-                            f = fopen(token, "rb");
+                            f = fopen(path, "rb");
 
-                        
                             memset(buffer, '\0', strlen(buffer) * sizeof(char));
                             sprintf(buffer, "UPL %s %d %s %d ", uid, tid, token, size);
                             n = write(tcpSocket_FS, buffer, strlen(buffer));
 
-                            // MAO INVISIVEL DO M3RC4D000
-
                             int n = 0;
                             do {
                                 char bufferTemp[1];
-                                memset(buffer, '\0', sizeof(char));
+                                memset(bufferTemp, '\0', sizeof(char));
                                 fread(bufferTemp, 1, 1, f);
                                 n += write(tcpSocket_FS, bufferTemp, 1);
                             } while (size > n);
-                            
-                            printf("File uploaded"); // adam smith ya
-                            
+
+                            fclose(f);
+                                                       
                             continue;
 
                         }
                         else if (strcmp(command, "retrieve") == 0 || strcmp(command, "r") == 0) {
-                            sprintf(buffer, "RTV %s %d %s\n", uid, tid, filenameTemp); // stuart mill conhesses
-                            // printf("sending to fs: %s")
-                            
+                            sprintf(buffer, "RTV %s %d %s\n", uid, tid, filenameTemp); 
                         }
                         else if (strcmp(command, "delete") == 0 || strcmp(command, "d") == 0) {
                             sprintf(buffer, "DEL %s %d %s\n", uid, tid, filenameTemp); // fs is homophobic
@@ -448,7 +444,6 @@ int main(int argc, char* const argv[]) {
                         else if (strcmp(command, "remove\n") == 0 || strcmp(command, "x\n") == 0) {
                             /* REM UID TID */
                             sprintf(buffer, "REM %s %d\n", uid, tid);
-                            
                         }
                         else if (strcmp(command, "list\n") == 0 || strcmp(command, "l\n") == 0) {
                             /* LST UID TID */
@@ -462,7 +457,6 @@ int main(int argc, char* const argv[]) {
                     }
                     else {
                         /* continue if incorrect command */
-                        printf("command: %s\n", command);
                         perror("invalid request");
                         continue;
                     }

@@ -251,7 +251,7 @@ int checkUnregisterInput(char buffer[SIZE]) {
 
 
         /* delete directory */
-        remove(filename); /* remove password.txt */
+        // remove(filename); /* remove password.txt */
         //
         memset(filename, '\0', SIZE * sizeof(char));
         strcpy(filename, dirName);
@@ -277,7 +277,7 @@ int checkUnregisterInput(char buffer[SIZE]) {
         strcpy(filename, dirName);
         strcat(filename, "/connect.txt");   
         remove(filename); /* remove tid.txt */
-        rmdir(dirName);
+        // rmdir(dirName);
         // more files
         return 1;    
     }
@@ -497,8 +497,6 @@ void treatRVCInput(char buffer[SIZE]) { //as received rvc from pd and he's going
     else 
         strcpy(msg, "RRQ EPD\n");
 
-    // printf("index: %s, msg: %s",index.c_str(), msg);
-
     if (send(fdClients[fdIndex], msg, strlen(msg), 0) != strlen(msg))
         perror("RRQ send");
 }
@@ -510,9 +508,13 @@ void treatVLDInput(char buffer[SIZE]) {
     char fileBuffer[SIZE];
     char toSend[SIZE];
 
-    // char fop[2], name[SIZE], fileTid
+    sscanf(buffer, "VLD %[0-9] %[0-9]\n", uid, tid);
 
-    sscanf(buffer, "VLD %s %s\n", uid, tid);
+    if (!uid || !tid) {
+        strcpy(toSend, "ERR\n");
+        Client_Server_Send(udpServerSocket, toSend);
+        return;
+    }
 
     strcat(path, uid);
     strcat(path, "/tid.txt");
@@ -530,7 +532,6 @@ void treatVLDInput(char buffer[SIZE]) {
     f.close();
     remove(path);
 
-
     //CNF UID TID Fop [Fname]
     strcpy(toSend, "CNF ");
     strcat(toSend, uid);
@@ -538,7 +539,6 @@ void treatVLDInput(char buffer[SIZE]) {
     strcat(toSend, tid);
     strcat(toSend, " ");
     if (strcmp(tid, fileTID.c_str()) != 0) {
-        printf("incorrect tid");
         strcat(toSend, "E"); //error fop
     }
     else {
@@ -565,14 +565,12 @@ void treatVLDInput(char buffer[SIZE]) {
 
     /* sends ok or not ok to fs */
     Client_Server_Send(udpServerSocket, toSend);
-// }
 }
 
 int checkAuthenticationInput(char buffer[SIZE]) {
     char uid[6], rid[5], vc[5], dirName[SIZE], path[SIZE];
 
     sscanf(buffer, "AUT %[0-9] %[0-9] %[0-9]\n", uid, rid, vc);
-
 
     strcpy(path, "USERS/");
     strcat(path, uid);
@@ -586,7 +584,6 @@ int checkAuthenticationInput(char buffer[SIZE]) {
         getline(f, fname);
     }
     getline(f, fileVC);
-    // getline(f, fileTID);
 
     f.close();
     
@@ -606,7 +603,7 @@ int main(int argc, char* argv[]) {
     setupUDPServerSocket();
     setupTCPServerSocket();
 
-    /* Initialize TCP babies fds */
+    /* Initialize TCP clients fds */
     for (int i = 0; i < maxUsers; i++) {   
         fdClients[i] = 0;
     } 
@@ -653,7 +650,7 @@ int main(int argc, char* argv[]) {
         for (; retval; retval--) {
             memset(command, '\0', SIZE * sizeof(char));
             memset(buffer, '\0', SIZE * sizeof(char));
-            //-------------------------------------------------------------------------------------
+        
             if (FD_ISSET(udpClientSocket, &readfds)) {
                 /*============================
                         PD -> RVC status
@@ -666,9 +663,7 @@ int main(int argc, char* argv[]) {
                 strncpy(command, buffer, 3);
 
                 if (strcmp(command, "RVC") == 0) {
-                    // printf("RVC-test\n");
                     treatRVCInput(buffer);
-
                 }
                 memset(command, '\0', SIZE * sizeof(char));
                 memset(buffer, '\0', SIZE * sizeof(char));
@@ -695,7 +690,6 @@ int main(int argc, char* argv[]) {
                 }
                 else if (strcmp(command, "UNR") == 0) {
                     if (checkUnregisterInput(buffer)) {
-                        // printf("run ok\n");
                         strcpy(buffer, "RUN OK\n");
                     }
                     else
@@ -735,6 +729,8 @@ int main(int argc, char* argv[]) {
                     do {
                         n += read(fd, &buffer[n], SIZE - n); 
                     } while (n != strlen(buffer));
+                    
+                    printf("buff: %s\n", buffer);
 
                     if (n == 0) {
 
@@ -746,6 +742,34 @@ int main(int argc, char* argv[]) {
                     else {
                             /* get command code */
                         strncpy(command, buffer, 3);
+                        if (strcmp(command, "EXT") == 0) {
+                            char user_id[6];
+                            char p[SIZE];
+
+
+
+                            sscanf(buffer, "EXT %s\n", user_id);
+                            user_id[5] = '\0';
+                            printf("id: %s.\n", user_id);    
+                            strcpy(p, "USERS/");
+                            strcat(p, user_id);
+                            strcat(p, "/");
+                            strcat(p, "login.txt");
+                            remove(p);
+                            printf("p1: %s.\n", p);    
+
+                            memset(p, '\0', sizeof(char)*strlen(p));
+                            strcpy(p, "USERS/");
+                            strcat(p, user_id);
+                            strcat(p, "/");
+                            strcat(p, "connect.txt");
+                            remove(p);
+                            printf("p2: %s.\n", p);  
+
+                            continue;
+                        }
+                    
+
 
                         if (strcmp(command, "LOG") == 0) {
                             if (checkLoginInput(buffer, fd)) {
@@ -783,7 +807,6 @@ int main(int argc, char* argv[]) {
                             while (n != strlen(buffer)) {
                                 n += send(fd, &buffer[n], strlen(buffer) - n, 0);
                             }
-                            
                         }
                         else if (strcmp(command, "AUT") == 0) {
                             int res = checkAuthenticationInput(buffer);
