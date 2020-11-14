@@ -140,7 +140,6 @@ void treatRLS(int fd, char uid[6]) {
     strcat(buffer, " ");
     strcat(buffer, s.c_str());
     strcat(buffer, "\n");
-    buffer[buffersize] = '\0'; //'\n' sits on last space
 
     n = 0;
     while (n < buffersize) {
@@ -250,7 +249,6 @@ void treatRLS(int fd, char uid[6]) {
             break;
         }
     }
-
     sum = 0;
     n = 0;
     do {
@@ -311,6 +309,7 @@ void treatRLS(int fd, char uid[6]) {
     char buffer[9];
     strcpy(buffer, "RUP OK\n");
 
+
     n = write(fdClients[fd], buffer, strlen(buffer));
     if (n < 0) perror("write fs to user");
 
@@ -351,7 +350,7 @@ void treatRDL(int fd, char uid[6]) {
     }
 
     if (n_files == 0) {
-        char bufferError[SIZE] = "RDL NOK\n";
+        char bufferError[10] = "RDL NOK\n";
         int n = 0;        
         do {
             n += write(fdClients[fd], &bufferError[n], strlen(bufferError) - n);
@@ -378,8 +377,9 @@ void treatRDL(int fd, char uid[6]) {
 
     remove(path);
 
-    char buffer[8];
+    char buffer[9];
     strcpy(buffer, "RDL OK\n");
+
     n = write(fdClients[fd], buffer, strlen(buffer));
     if (n < 0) perror("write fs to user");
 
@@ -413,7 +413,7 @@ void treatRDL(int fd, char uid[6]) {
     }
     rmdir(path_to_user_dir);
 
-    char buffer[8];
+    char buffer[9];
     strcpy(buffer, "RRM OK\n");
     n = write(fdClients[fd], buffer, strlen(buffer));
     if (n < 0) perror("write fs to user");
@@ -701,7 +701,7 @@ int main(int argc, char* argv[]) {
                             do {
                                 n = read(fd, &nome[size], 1);
                                 size += n;
-                            } while (n > 0 && nome[size-1] != ' ' && size < 24);
+                            } while (n > 0 && nome[size-1] != ' ' && size < 25);
                             nome[size-1] = '\0';
 
                             char fsz[10];
