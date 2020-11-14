@@ -18,6 +18,7 @@ Nas diretorias dos Users são criados e eliminados (quando necessário) os fiche
 <li>"connect.txt" onde são guardados os dados IP e port do user para serem utilizados no verbose mode</li>
 <li>"login.txt" que é um ficheiro vazio usado apenas para detetar a existência de login ativo do user</li>
 <li>"tid.txt" que existe enquanto o user está num processo ativo de requisição (o mais recente); guarda o FOP, filename (se existir), VC e TID correspondentes</li>
+</ul>
 
 ### User
 O user cria uma diretoria "My_files". Aqui vão estar todos os ficheiros acessíveis pelo mesmo.<br/>
